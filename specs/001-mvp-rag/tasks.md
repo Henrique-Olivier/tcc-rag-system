@@ -1,6 +1,6 @@
 # Tarefas 001 — MVP Assistente de pesquisa para TCC
 
-> Spec: `spec.md` · Plano: `plan.md` (v10) · Quadro: https://trello.com/b/kiVC5tnp/projeto-rag-tcc
+> Spec: `spec.md` · Plano: `plan.md` (v11) · Quadro: https://trello.com/b/kiVC5tnp/projeto-rag-tcc
 
 Tarefas pequenas, em ordem de dependência. Cada uma aponta os CAs que atende e as seções do plano que a descrevem. Uma tarefa só está pronta quando os testes indicados em "Pronto quando" passam.
 
@@ -273,13 +273,80 @@ Medir o tempo entre o envio da pergunta e o fim da resposta com o sistema ocioso
 - **Depende de:** T11, T18
 - **Pronto quando:** manual: os dois cenários ficam em até ~15 s, com os números registrados em `measurements.md`.
 
+## Fase 6 — Ajustes da avaliação simulada (plano v11)
+
+### T29 — Migração: citações sem dependência dos trechos e novos campos
+
+Migração Alembic `0003`: `citations.chunk_id` passa a aceitar nulo, com `ON DELETE SET NULL`; `messages.uncited` (booleano, padrão falso); `documents.references_start_page` (inteiro, nulo). Modelos e schemas atualizados; a citação continua exibida pelas cópias de trecho, arquivo e página.
+
+- **CAs:** 07, 16
+- **Plano:** 4, 5.6
+- **Depende de:** T01
+- **Pronto quando:** integração: `upgrade` e `downgrade` funcionam; apagar um trecho citado mantém a citação com `chunk_id` nulo; `GET /conversations/{id}` continua trazendo essa citação com trecho, arquivo e página.
+
+### T30 — Seção de referências fora do índice
+
+Na extração, detectar o título da seção de referências pela heurística da seção 5.3 (linha só com o título, da lista em português e inglês, numerado ou não; só a partir da metade do documento; vale a última ocorrência), descartar dali até o fim e gravar `references_start_page`. Sem título, indexar o documento inteiro e registrar no log.
+
+- **CAs:** 09
+- **Plano:** 5.3
+- **Depende de:** T29
+- **Pronto quando:** unit com PDFs gerados no teste: títulos `Referências`, `REFERENCES`, `7. References:` e `Literatura citada` detectados; palavra no meio de frase ignorada; título na primeira metade ignorado; texto antes do título na mesma página mantido; documento sem título indexado inteiro. Integração: o worker grava `references_start_page`.
+
+### T31 — Comando de reindexação
+
+`python -m app.worker.reindex`: percorre os documentos `ready` (ativos e removidos) e reprocessa cada um fora da fila, trocando os trechos antigos pelos novos na mesma transação. Falha num documento desfaz só a troca dele, registra no log e segue. Depois de pronto, rodar no sistema dela (`docker compose exec worker nice -n 10 python -m app.worker.reindex`).
+
+- **CAs:** 07, 09, 16, 17
+- **Plano:** 5.6
+- **Depende de:** T29, T30
+- **Pronto quando:** integração (embedding simulado): trechos trocados e documento continua `ready`; documento removido também reindexado e continua removido; citação de conversa salva sobrevive com `chunk_id` nulo; falha simulada num documento mantém os trechos antigos e o seguinte é processado. Manual: comando executado nos documentos dela.
+
+### T32 — Regras novas e exemplo de citação no prompt
+
+Acrescentar às instruções da seção 6.2: aspas só para texto literal no idioma original; manter o contexto de cada dado (espécie, população, tipo de estudo); não classificar como efeito colateral, conclusão ou recomendação o que o trecho não classifica. Terminar com o exemplo curto do formato `[n]` e dos formatos proibidos.
+
+- **CAs:** 06, 07
+- **Plano:** 6.2
+- **Depende de:** T15
+- **Pronto quando:** unit: as instruções contêm as três regras e o exemplo; o exemplo usa só marcadores que o parser reconhece.
+
+### T33 — Resposta sem citação sinalizada
+
+Depois da geração, se a resposta tiver conteúdo e nenhum marcador válido, salvar com `uncited` e enviar `uncited` no evento `done`. A resposta "não encontrei" da etapa 3 nunca é marcada. No front, mostrar o aviso da seção 6.4 abaixo da resposta, no chat e nas conversas salvas.
+
+- **CAs:** 07
+- **Plano:** 6.4, 6.5, 9
+- **Depende de:** T18, T25, T29
+- **Pronto quando:** integração com provedor falso: resposta sem marcador válido salva com `uncited` e `done` traz `uncited: true`; resposta com citação e resposta "não encontrei" ficam com `uncited` falso. Build passa; manual: aviso visível no chat e na conversa salva.
+
+### T34 — Script de avaliação com posições e métricas separadas
+
+Evoluir `test/eval_retrieval.py` e `test/eval_answers.py`: para cada pergunta, registrar a similaridade de cada trecho enviado e a posição da página esperada entre os 30 trechos mais similares; separar as métricas de recuperação (página esperada no `TOP_K`) e de citação no documento esperado, contando as respostas `uncited`; aceitar o modelo avaliado como parâmetro do relatório, para a comparação da seção 12. Usar o `test/questions.yaml` atualizado (Q09 com D1 p. 3).
+
+- **CAs:** 06, 07, 08, 09, 11
+- **Plano:** 6.3, 12
+- **Depende de:** T26, T33
+- **Pronto quando:** os dois scripts rodam no conjunto simulado e o relatório traz, por pergunta, similaridades, posição da página esperada (ou "fora dos 30") e as duas métricas.
+
+### T35 — Reavaliação, ajuste da recuperação e comparação de modelos
+
+Com as referências fora do índice e os documentos reindexados: rodar o script da T34, aplicar a regra da seção 6.3 (`TOP_K` até 10, `CHUNK_SIZE` 300 com reindexação, ou busca híbrida como spec própria, conforme as posições medidas) e repetir a avaliação depois de cada ajuste. Rodar as respostas com `openai/gpt-oss-120b` e com `qwen/qwen3.8-27b` e comparar pelos critérios da seção 12. Registrar tudo em `measurements.md` e propor revisão do plano se o modelo padrão mudar.
+
+- **CAs:** 06, 07, 08, 09, 11
+- **Plano:** 6.3, 6.7, 12
+- **Depende de:** T31, T32, T33, T34
+- **Pronto quando:** manual: decisão da seção 6.3 aplicada e justificada com os números; comparação de modelos registrada; CAs 06 a 09 e 11 revisados no relatório novo, na coluna "Em revisão".
+
+## Fase 7 — Aceite
+
 ### T28 — Aceite final
 
 Percorrer os 17 CAs com o ambiente completo no Docker e PDFs reais, marcando cada um no checklist da Spec 001 no Trello (https://trello.com/c/KKeHxpKj).
 
 - **CAs:** 01 a 17
 - **Plano:** 12, 15
-- **Depende de:** T25, T26, T27
+- **Depende de:** T25, T26, T27, T35
 - **Pronto quando:** manual: os 17 itens do checklist da Spec 001 marcados.
 
 ## Rastreabilidade
@@ -291,18 +358,18 @@ Percorrer os 17 CAs com o ambiente completo no Docker e PDFs reais, marcando cad
 | CA03 | T04, T06, T08, T09, T22, T28 |
 | CA04 | T06, T07, T22, T28 |
 | CA05 | T07, T12, T14, T22, T28 |
-| CA06 | T03, T15, T18, T26, T28 |
-| CA07 | T05, T13, T14, T15, T18, T24, T26, T28 |
-| CA08 | T12, T15, T18, T26, T28 |
-| CA09 | T02, T12, T15, T18, T26, T28 |
+| CA06 | T03, T15, T18, T26, T32, T34, T35, T28 |
+| CA07 | T05, T13, T14, T15, T18, T24, T26, T29, T31, T32, T33, T34, T35, T28 |
+| CA08 | T12, T15, T18, T26, T34, T35, T28 |
+| CA09 | T02, T12, T15, T18, T26, T30, T31, T34, T35, T28 |
 | CA10 | T01, T08, T09, T28 |
-| CA11 | T14, T16, T18, T23, T26, T28 |
+| CA11 | T14, T16, T18, T23, T26, T34, T35, T28 |
 | CA12 | T18, T19, T23, T28 |
 | CA13 | T17, T18, T21, T23, T28 |
 | CA14 | T17, T20, T25, T28 |
 | CA15 | T17, T25, T28 |
-| CA16 | T17, T25, T28 |
-| CA17 | T06, T07, T22, T28 |
+| CA16 | T17, T25, T29, T31, T28 |
+| CA17 | T06, T07, T22, T31, T28 |
 | RNF: 100 documentos de 50 páginas | T11 |
 | RNF: resposta em até ~15 s | T27 |
 | RNF: dados não expostos | T00 (portas em 127.0.0.1), T06 (arquivos salvos por hash) |

@@ -89,7 +89,7 @@ questions:
     min_docs: 3
     question: Qual a prevalência de DRC em gatos idosos segundo os artigos?
     expected:
-      - {doc: D1, pages: [4]}
+      - {doc: D1, pages: [3]}
       - {doc: D2, pages: [2]}
       - {doc: D3, pages: [3]}
       - {doc: D6, pages: [2, 3]}

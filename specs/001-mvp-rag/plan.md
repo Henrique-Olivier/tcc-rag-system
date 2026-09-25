@@ -18,6 +18,7 @@ Este plano descreve **como** atender a Spec 001. Cada decisão importante aponta
 | v8 | O front consulta a lista `GET /documents` a cada 2 s enquanto houver documentos `pending` ou `processing`, em vez de um `GET /documents/{id}` por documento |
 | v9 | Layout: barra lateral recolhível só com navegação e conversas; documentos numa página própria (`/documentos`), para nomes longos e a lista de conversas terem espaço |
 | v10 | O `gpt-oss` também cita como `[2†L20-L23]`: o sufixo `†…` é removido do texto completo antes do parser e do banco, e o front o ignora durante o streaming |
+| v11 | Achados do conjunto de avaliação simulado: exemplo de citação e três regras novas no prompt; resposta sem citação sinalizada na interface; seção de referências detectada e fora do índice; comando de reindexação, com citações que sobrevivem à troca de trechos; script de avaliação com posição da página esperada; escolha entre `TOP_K`, `CHUNK_SIZE` e busca híbrida condicionada aos números; comparação entre `openai/gpt-oss-120b` e `qwen/qwen3.8-27b` |
 
 ## 1. Arquitetura
 
@@ -69,11 +70,11 @@ Os módulos de `ingestion`, `retrieval`, `llm` e `chat` não importam nada do Fa
 
 | Tabela | Campos principais | Observações |
 |---|---|---|
-| `documents` | id, filename, file_hash (SHA-256, único), file_path, num_pages, status, error_message, attempts, created_at, deleted_at | status: `pending`, `processing`, `ready`, `failed`. `attempts` conta reivindicações pelo worker. `deleted_at` preenchido = soft delete |
+| `documents` | id, filename, file_hash (SHA-256, único), file_path, num_pages, references_start_page, status, error_message, attempts, created_at, deleted_at | status: `pending`, `processing`, `ready`, `failed`. `attempts` conta reivindicações pelo worker. `deleted_at` preenchido = soft delete. `references_start_page` é a página onde começa a seção de referências, ou nulo se ela não foi encontrada (5.3) |
 | `chunks` | id, document_id, page_number, chunk_index, content, token_count, embedding `vector(1024)` | Sem índice vetorial (seção 6.2) |
 | `conversations` | id, title, created_at, closed_at | `closed_at` nulo = conversa aberta |
-| `messages` | id, conversation_id, role, content, rewritten_query, status, created_at | role: `user` ou `assistant`. status: `complete` ou `error` |
-| `citations` | id, message_id, chunk_id, document_id, marker, filename, page_number, excerpt | `excerpt` e `filename` são **cópias**, não referências |
+| `messages` | id, conversation_id, role, content, rewritten_query, status, uncited, created_at | role: `user` ou `assistant`. status: `complete` ou `error`. `uncited` marca resposta da LLM com conteúdo e sem nenhum marcador válido (6.4) |
+| `citations` | id, message_id, chunk_id, document_id, marker, filename, page_number, excerpt | `excerpt`, `filename` e `page_number` são **cópias**, não referências. `chunk_id` é opcional (`ON DELETE SET NULL`): a citação sobrevive quando os trechos são refeitos (5.6) |
 | `worker_heartbeat` | id (linha única), last_seen_at | Atualizada periodicamente pelo worker (seção 5.5) |
 
 **Páginas:** `page_number` é sempre armazenado a partir de 1. O PyMuPDF numera a partir de 0, então a conversão acontece uma única vez, na extração. O react-pdf também numera a partir de 1, então o front usa o valor do banco sem ajustes.
@@ -126,7 +127,15 @@ O worker abre o PDF com PyMuPDF e verifica, nesta ordem:
 - **PDF protegido por senha** (`needs_pass`): `failed` com "o PDF está protegido por senha".
 - **Sem texto extraível** (média menor que ~50 caracteres por página): `failed` com a mensagem de que o arquivo parece ser escaneado (CA03).
 
-Passando pelas verificações, o texto é extraído página a página, cada página é dividida em trechos de ~500 tokens com sobreposição de ~80, contados com o tokenizador do próprio bge-m3, e os embeddings são gerados em lotes de 16, normalizados e gravados junto com os trechos numa única transação. O documento passa para `ready` (CA01). Como tudo fica no Postgres e nos volumes, os documentos sobrevivem a reinícios (CA10).
+Passando pelas verificações, o texto é extraído página a página, a seção de referências é descartada (abaixo), cada página é dividida em trechos de ~500 tokens com sobreposição de ~80, contados com o tokenizador do próprio bge-m3, e os embeddings são gerados em lotes de 16, normalizados e gravados junto com os trechos numa única transação. O documento passa para `ready` (CA01). Como tudo fica no Postgres e nos volumes, os documentos sobrevivem a reinícios (CA10).
+
+**Seção de referências:** confirmado no conjunto de avaliação (seção 14), as páginas de referências competem com o conteúdo na busca, porque repetem os termos do artigo em títulos de outros trabalhos. Na extração, o worker procura o título da seção:
+
+- Uma linha que, sem acentos e sem diferença de maiúsculas, contenha **só** o título, opcionalmente numerado e com dois-pontos: `Referências`, `Referências bibliográficas`, `References`, `Bibliografia`, `Bibliography`, `Literatura citada` ou `Literature cited` (por exemplo, `7. REFERENCES`). Linhas em que a palavra aparece no meio de uma frase não contam.
+- Só valem ocorrências a partir da metade do documento, para não cortar um sumário ou uma menção no início; se houver mais de uma, vale a última.
+- O texto da linha do título em diante é descartado, até o fim do documento; o que vem antes dela na mesma página (o fim da conclusão, por exemplo) é mantido. A página do título fica em `references_start_page`.
+- **Sem título encontrado**, o documento é indexado inteiro, como antes, com `references_start_page` nulo e uma linha no log. Isso cobre revisões sem seção de referências, anotações e artigos com títulos fora da lista; eles só perdem o filtro, não falham.
+- **Custo aceito:** o que vier depois das referências (apêndices, dados dos autores, material suplementar) também sai do índice. Em artigos científicos isso raramente é conteúdo que ela vá citar.
 
 **Nenhuma exceção derruba o loop:** o processamento de cada documento roda dentro de um `try/except` amplo. Qualquer exceção não prevista acima faz rollback dos chunks daquele documento, marca-o como `failed` com a mensagem genérica "erro inesperado ao processar o arquivo", registra o erro completo no log, e o worker segue para o próximo documento. O que escapa a esse tratamento são as mortes do processo, cobertas pelo limite de tentativas da seção 5.2.
 
@@ -138,6 +147,17 @@ O cenário máximo da spec (100 documentos de 50 páginas, cerca de 5 mil págin
 
 O worker grava `last_seen_at` na tabela `worker_heartbeat` a cada 10 segundos, inclusive quando está ocioso, numa thread própria para não depender do andamento de um documento longo. O `GET /health` informa o worker como parado se o último heartbeat tiver mais de 60 segundos. O front consulta o `/health` periodicamente enquanto houver documentos `pending` ou `processing`, e mostra um aviso ("o processamento de documentos está parado") em vez de deixar os documentos "aguardando" para sempre sem explicação. No Compose, o worker tem `restart: unless-stopped` (seção 11), então na maioria dos casos ele volta sozinho e o aviso desaparece.
 
+### 5.6 Reindexação
+
+Mudanças na extração ou no chunking (a seção de referências, um novo `CHUNK_SIZE`) só valem para documentos novos. Para os existentes há um comando, `python -m app.worker.reindex`, executado dentro do container do worker (`docker compose exec worker nice -n 10 python -m app.worker.reindex`). Ele percorre os documentos `ready`, inclusive os removidos, e processa cada um com a mesma função do worker, fora da fila:
+
+- Os trechos antigos são apagados e os novos gravados **na mesma transação**, então o documento continua disponível na busca, com os trechos antigos, até a troca, e nunca fica sem trechos.
+- Se o reprocessamento de um documento falhar, a transação é desfeita, os trechos antigos continuam valendo e o erro vai para o log; o comando segue para o próximo.
+- As citações de conversas salvas continuam intactas: elas guardam cópia do trecho, do arquivo e da página (seção 4), e só o `chunk_id` vira nulo.
+- Documentos removidos também são reindexados para que, se forem reativados (CA17), voltem já com o índice novo.
+
+O tempo segue a medição da T11 (~4,4 s por página). Com poucos documentos são minutos; perto do cenário máximo, horas, então o comando é pensado para rodar uma vez, num momento em que ela não esteja usando o sistema.
+
 ## 6. Pipeline de consulta
 
 A pergunta chega por `POST /conversations/{id}/messages` e a resposta volta por SSE. O fluxo tem seis etapas:
@@ -147,7 +167,7 @@ A pergunta chega por `POST /conversations/{id}/messages` e a resposta volta por 
 3. **Filtrar por relevância.** Trechos com similaridade abaixo de `MIN_SIMILARITY` são descartados. Se nenhum sobrar, o sistema responde diretamente que não encontrou informação suficiente nos documentos, sem chamar a LLM (CA08). Essa resposta é salva como mensagem da assistente com status `complete` e sem citações, e entra no histórico normalmente, porque é um contexto útil e inofensivo para as perguntas seguintes.
 4. **Montar o prompt.** Instruções em português, os trechos restantes numerados a partir de [1] com arquivo e página, o histórico preparado numa seção claramente delimitada, e a pergunta. As instruções estão na seção 6.2.
 5. **Gerar.** A resposta do modelo principal é transmitida token a token. O modelo é o `openai/gpt-oss-120b`; a qualidade do português dele é avaliada com o conjunto de avaliação (seção 12).
-6. **Salvar citações.** Ao final, o back-end extrai os marcadores da resposta (seção 6.4) e salva a mensagem da assistente com uma citação por marcador válido, copiando o trecho e o nome do arquivo (CA07, CA12).
+6. **Salvar citações.** Ao final, o back-end extrai os marcadores da resposta (seção 6.4) e salva a mensagem da assistente com uma citação por marcador válido, copiando o trecho e o nome do arquivo (CA07, CA12). Se a resposta tiver conteúdo e nenhum marcador válido, ela é salva com `uncited` e a interface mostra um aviso (seção 6.4).
 
 ### 6.1 Preparação do histórico
 
@@ -167,6 +187,11 @@ As instruções do sistema, em português, determinam que o modelo:
 - Nunca use o formato "(arquivo, p. X)" do histórico para citar; a única forma válida de citação é [n].
 - Responda em português do Brasil, mesmo quando os trechos estiverem em outro idioma (CA09).
 - Diga explicitamente quando os trechos não forem suficientes para responder (CA08).
+- Nunca use aspas em conteúdo traduzido; aspas só para reproduzir texto literal, no idioma original do trecho (CA06, CA07). No conjunto de avaliação o modelo pôs entre aspas frases que ele mesmo traduziu, o que faria a estudante citar como literal um texto que não existe no artigo.
+- Mantenha o contexto de cada dado como está no trecho (espécie, população, tipo de estudo), sem generalizar: um dado sobre cães não pode ser atribuído a humanos nem a gatos (CA06).
+- Não chame de efeito colateral, conclusão ou recomendação algo que o trecho não classifica assim (CA06).
+
+As instruções terminam com um exemplo curto do formato de citação esperado, por exemplo: `A dose foi de 0,2 g/kg/dia [1], e dois estudos relataram redução do fósforo [2, 3].` O exemplo diz também o que não usar: números sobrescritos, `【1】` e `[1†...]`.
 
 O conjunto de avaliação (seção 12) inclui perguntas de acompanhamento para verificar se o modelo respeita essas regras em relação ao histórico.
 
@@ -178,9 +203,21 @@ O operador `<=>` do pgvector devolve **distância** de cosseno. A similaridade u
 
 **Calibração do limiar:** perguntas em português contra textos em inglês tendem a ter similaridade menor do que perguntas no mesmo idioma. Um limiar alto demais barraria respostas válidas (prejudicando o CA09) na tentativa de atender o CA08. Por isso `MIN_SIMILARITY` não tem valor fixo definido neste plano: ele é calibrado com o conjunto de avaliação (seção 12), que inclui perguntas cross-lingual de propósito. O critério de calibração é começar baixo, priorizando o CA09, e subir só enquanto nenhuma pergunta válida for barrada.
 
+**Recuperação: `TOP_K`, `CHUNK_SIZE` ou busca híbrida.** Na primeira avaliação (T26), 3 das 14 perguntas com resposta não trouxeram a página esperada entre os 8 trechos, concentradas no D2 (revisão em português, páginas densas). A escolha do ajuste fica condicionada aos números do script de avaliação (seção 12), medidos **depois** de tirar as referências do índice (5.3) e reindexar (5.6). Para cada pergunta que falhar, o script registra a posição da página esperada entre os 30 trechos mais similares:
+
+1. **Todas as falhas até a posição 10:** `TOP_K` sobe para 10. Com trechos de 500 tokens isso dá ~5 mil tokens de trechos e ~7 mil por pergunta, o teto que cabe no limite de 8 mil tokens por minuto do Groq (6.7); por isso 10 é o máximo com o `CHUNK_SIZE` atual.
+2. **Alguma falha além da posição 10, ou fora dos 30, em documentos de páginas densas:** `CHUNK_SIZE` cai para 300 (sobreposição de 50), com reindexação (5.6) e nova avaliação. Trechos menores diluem menos o dado e permitem `TOP_K` maior no mesmo orçamento (12 × 300 = 3,6 mil tokens).
+3. **Falhas que continuam fora dos 30 depois do item 2, ou concentradas em termos exatos** (números, siglas como SDMA, nomes de fármacos): a busca híbrida (vetorial mais busca textual do Postgres) é antecipada como uma spec própria, porque muda o contrato da busca.
+
+Em qualquer caso, a decisão tomada, os números que a justificaram e a nova taxa de acerto vão para `measurements.md`. A pergunta de exaustividade (Q09, vários artigos) fica fora desse critério: ela depende de trazer vários documentos, não de achar uma página.
+
 ### 6.4 Extração de marcadores
 
-O parser reconhece `[1]`, listas como `[1, 3]` e intervalos como `[1-3]` e `[1–3]`. Antes dele, colchetes largos que alguns modelos usam (`【1】`, `［1］`) são convertidos para `[ ]` em cada pedaço do streaming, então o front, o banco e o parser só veem o formato `[n]`. O sufixo de linha que o `gpt-oss` às vezes anexa (`[2†L20-L23]`) pode vir partido entre pedaços, então é removido do texto completo antes do parser e do banco, e o front o ignora durante o streaming. Números fora do intervalo de trechos enviados no prompt (por exemplo, `[9]` quando só havia 6 trechos) são ignorados. Uma resposta sem nenhum marcador válido é salva normalmente, sem citações.
+O parser reconhece `[1]`, listas como `[1, 3]` e intervalos como `[1-3]` e `[1–3]`. Antes dele, colchetes largos que alguns modelos usam (`【1】`, `［1］`) são convertidos para `[ ]` em cada pedaço do streaming, então o front, o banco e o parser só veem o formato `[n]`. O sufixo de linha que o `gpt-oss` às vezes anexa (`[2†L20-L23]`) pode vir partido entre pedaços, então é removido do texto completo antes do parser e do banco, e o front o ignora durante o streaming. Números fora do intervalo de trechos enviados no prompt (por exemplo, `[9]` quando só havia 6 trechos) são ignorados.
+
+**Formatos observados:** todos vieram do `openai/gpt-oss-120b` no Groq, em 25/09/2026: `【1】` (v7), `[2†L20-L23]` (v10) e números sobrescritos no meio do texto (`¹`, `²`) com os marcadores de verdade agrupados no fim (`[7][2]`). Os sobrescritos não são convertidos, porque se confundem com expoentes de unidades (m², 10³); o exemplo no prompt (6.2) pede para não usá-los. A comparação com `qwen/qwen3.8-27b` (seção 12) mede se outro modelo segue o formato com mais estabilidade.
+
+**Resposta sem citação:** uma resposta da LLM com conteúdo e nenhum marcador válido é salva normalmente, sem citações, mas com `uncited` verdadeiro, e a interface mostra o aviso "Esta resposta não indicou de quais trechos veio. Confira as fontes antes de usar no TCC." (seção 9). A alternativa de pedir uma nova resposta foi descartada: dobraria o consumo de tokens e, com o limite de 8 mil por minuto (6.7), a segunda chamada tenderia a esbarrar no limite, além de dobrar a latência. A resposta "não encontrei" da etapa 3 não passa pela LLM e nunca é marcada. Respostas em que o próprio modelo diz que os trechos não bastam também recebem o aviso quando não citam nada; é um aviso a mais aceitável, e o script de avaliação mede com que frequência acontece.
 
 ### 6.5 Eventos SSE
 
@@ -188,7 +225,7 @@ O parser reconhece `[1]`, listas como `[1, 3]` e intervalos como `[1-3]` e `[1�
 |---|---|
 | `sources` | Enviado primeiro, com os trechos que entraram no prompt, para o front já poder montar as citações |
 | `token` | Pedaços do texto da resposta |
-| `done` | Id da mensagem salva e marcadores efetivamente citados |
+| `done` | Id da mensagem salva, marcadores efetivamente citados e `uncited` |
 | `error` | Mensagem amigável (por exemplo, limite do Groq atingido) |
 
 ### 6.6 Falhas no streaming
@@ -248,7 +285,7 @@ A tela tem uma barra lateral recolhível com o botão de nova conversa, o link p
 
 Na página de documentos, o componente de upload aceita arrastar vários arquivos e mostra o resultado e o status de cada um, consultando `GET /documents` a cada 2 segundos enquanto algum documento estiver `pending` ou `processing` (CA02, CA03). Uma consulta à lista traz o status e a posição de todos, em vez de uma requisição por documento. Documentos na fila mostram a posição ("aguardando, 3º na fila"), já que a indexação pode demorar. Se o `/health` indicar o worker parado, a página mostra o aviso da seção 5.5. Cada item da lista tem a opção de remover.
 
-No chat, a resposta aparece sendo escrita conforme os eventos `token` chegam. Os marcadores [n] viram elementos clicáveis que abrem um painel com o trecho original, o arquivo e a página, e um botão que abre o PDF naquela página no visualizador (CA07). O 409 de conversa encerrada é tratado como descrito na seção 7.
+No chat, a resposta aparece sendo escrita conforme os eventos `token` chegam. Os marcadores [n] viram elementos clicáveis que abrem um painel com o trecho original, o arquivo e a página, e um botão que abre o PDF naquela página no visualizador (CA07). Respostas com `uncited` mostram, abaixo do texto, o aviso da seção 6.4, tanto no chat quanto nas conversas salvas. O 409 de conversa encerrada é tratado como descrito na seção 7.
 
 Conversas antigas abrem numa visualização somente leitura, sem campo de pergunta. Citações de documentos removidos mostram o trecho com um aviso e sem o botão de abrir o PDF (CA16). Respostas com status `error` aparecem como "resposta não concluída".
 
@@ -313,6 +350,15 @@ Isso valida de forma automática os CAs 01 a 05, 10 e 12 a 17.
 
 **Conjunto de avaliação** com 10 a 15 perguntas reais sobre os artigos dela, cada uma com o documento e a página esperados, incluindo de propósito perguntas em português sobre artigos em inglês, algumas perguntas sem resposta nos documentos, e sequências de acompanhamento para verificar as regras do histórico (seção 6.2). Ele mede se a busca encontra os trechos certos (CA09) e serve para calibrar `MIN_SIMILARITY` e `TOP_K` equilibrando CA08 e CA09. Os CAs que dependem do comportamento da LLM real (06, 07, 08 e 11) são validados manualmente com esse mesmo conjunto, na coluna "Em revisão".
 
+**Script de avaliação.** Para cada pergunta, ele registra a similaridade de cada trecho enviado no prompt e a posição da página esperada entre os 30 trechos mais similares (ou "fora dos 30"). Separa duas métricas automáticas:
+
+- **Recuperação:** a página esperada estava entre os `TOP_K` trechos enviados? É o número que alimenta a escolha da seção 6.3.
+- **Citação no documento esperado:** algum marcador da resposta aponta para um trecho do documento esperado? Também conta as respostas marcadas com `uncited`.
+
+A **precisão da citação** (se o trecho citado sustenta de fato a afirmação) continua sendo avaliação manual, no relatório gerado pelo script.
+
+**Comparação de modelos.** O conjunto roda com `openai/gpt-oss-120b` e com `qwen/qwen3.8-27b` (troca de `LLM_ANSWER_MODEL`, sem mudar código), comparando: taxa de respostas com citação válida e com `uncited`, formatos de citação fora do padrão, as regras da seção 6.2 na revisão manual, e latência. O `llama-3.3-70b-versatile` do plano original não está mais disponível no Groq (v6). Os dois modelos têm os mesmos limites no plano gratuito, e cada um consome a própria cota. A troca de modelo padrão só acontece se o outro for melhor em citação sem perder nas regras de conteúdo.
+
 **Teste de latência** mede o tempo entre o envio da pergunta e o fim da resposta, em dois cenários: sistema ocioso e worker indexando um lote de documentos. O critério é ficar em até ~15 segundos nos dois casos (RNF). Se o cenário com indexação estourar, o ajuste é redistribuir threads e o limite de `cpus` da seção 11.
 
 **Teste de dimensionamento** mede o tempo de indexação de 5 documentos típicos, logo no começo da implementação, para extrapolar o tempo do cenário de 100 documentos e alinhar a expectativa com ela.
@@ -326,6 +372,10 @@ Isso valida de forma automática os CAs 01 a 05, 10 e 12 a 17.
 - **Limite de 3 tentativas por documento:** ver seção 5.2.
 - **Resposta "não encontrei" é salva e entra no histórico:** ver seção 6, etapa 3.
 - **Busca exata sem índice vetorial no MVP:** ver seção 6.3.
+- **Resposta sem citação vira aviso, não nova tentativa:** ver seção 6.4.
+- **Seção de referências fora do índice, com o documento indexado inteiro quando ela não é encontrada:** ver seção 5.3.
+- **Citações sobrevivem à reindexação (`chunk_id` opcional):** ver seções 4 e 5.6.
+- **Ajuste da recuperação decidido pelos números da avaliação:** ver seção 6.3.
 
 ## 14. Riscos
 
@@ -337,9 +387,11 @@ Isso valida de forma automática os CAs 01 a 05, 10 e 12 a 17.
 | Worker parado sem ninguém perceber | Heartbeat, aviso no front e `restart: unless-stopped` (5.5, 11) |
 | Disputa de CPU entre ingestão e perguntas | Worker em processo separado, `cpus` limitado, `nice` e threads coerentes; teste de latência |
 | Limiar de similaridade barrando perguntas cross-lingual | Calibração com conjunto de avaliação cross-lingual |
-| Modelo usando o histórico como fonte ou citando fora do formato [n] | Instruções explícitas (6.2) e perguntas de acompanhamento no conjunto de avaliação |
+| Modelo usando o histórico como fonte ou citando fora do formato [n] | Instruções explícitas e exemplo de citação (6.2), normalização dos formatos observados e aviso de resposta sem citação (6.4), comparação de modelos (12) |
+| Modelo generalizando dados para outra espécie ou chamando de conclusão o que o trecho não diz | Regras de contexto na seção 6.2; perguntas-armadilha no conjunto de avaliação |
 | Artigos com duas colunas, cabeçalhos e rodapés geram trechos com texto misturado | Inspecionar os primeiros documentos processados |
-| Seção de referências bibliográficas polui a busca | Filtrá-la como melhoria, se aparecer nos testes |
+| Seção de referências bibliográficas polui a busca | Confirmado no conjunto de avaliação: detecção na ingestão e reindexação (5.3, 5.6) |
+| Dado curto diluído em trechos longos não é recuperado | Posição da página esperada medida pelo script; ajuste condicionado aos números (6.3) |
 | Limite de memória do Docker Desktop menor que o necessário | Conferir e ajustar a configuração da VM (seção 11) |
 
 ## 15. Rastreabilidade
@@ -351,10 +403,10 @@ Isso valida de forma automática os CAs 01 a 05, 10 e 12 a 17.
 | CA03 | Verificações de arquivo (5.3), captura de exceções e limite de tentativas (5.2, 5.3), reprocessamento de `failed` (5.1) |
 | CA04 | Regras de upload por hash, duplicados na mesma requisição e concorrentes (5.1) |
 | CA05 | Soft delete, filtro na busca (6.3) e omissão no histórico (6.1) |
-| CA06 | Instruções do prompt (6.2) |
-| CA07 | Marcadores [n], parser (6.4), histórico sem marcadores (6.1), instruções (6.2), painel de trecho e visualizador (9) |
+| CA06 | Instruções do prompt, incluindo aspas, contexto do dado e classificação (6.2) |
+| CA07 | Marcadores [n], parser e aviso de resposta sem citação (6.4), histórico sem marcadores (6.1), instruções e exemplo (6.2), painel de trecho e visualizador (9) |
 | CA08 | Filtro de relevância (6, etapa 3), calibração (6.3) e instruções do prompt (6.2) |
-| CA09 | bge-m3 multilíngue, calibração cross-lingual (6.3) e instrução de idioma (6.2) |
+| CA09 | bge-m3 multilíngue, calibração cross-lingual e ajuste da recuperação (6.3), referências fora do índice (5.3) e instrução de idioma (6.2) |
 | CA10 | Persistência em Postgres e volumes; fila no banco (5.2) |
 | CA11 | Reescrita de pergunta com histórico preparado (6, etapa 1; 6.1) |
 | CA12 | Salvamento imediato de mensagens e citações (6); falhas no streaming com gravação protegida (6.6) |
