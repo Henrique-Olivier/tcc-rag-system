@@ -19,6 +19,7 @@ Este plano descreve **como** atender a Spec 001. Cada decisão importante aponta
 | v9 | Layout: barra lateral recolhível só com navegação e conversas; documentos numa página própria (`/documentos`), para nomes longos e a lista de conversas terem espaço |
 | v10 | O `gpt-oss` também cita como `[2†L20-L23]`: o sufixo `†…` é removido do texto completo antes do parser e do banco, e o front o ignora durante o streaming |
 | v11 | Achados do conjunto de avaliação simulado: exemplo de citação e três regras novas no prompt; resposta sem citação sinalizada na interface; seção de referências detectada e fora do índice; comando de reindexação, com citações que sobrevivem à troca de trechos; script de avaliação com posição da página esperada; escolha entre `TOP_K`, `CHUNK_SIZE` e busca híbrida condicionada aos números; comparação entre `openai/gpt-oss-120b` e `qwen/qwen3.8-27b` |
+| v12 | Calibração da T35 pela regra da seção 6.3: trechos de ~300 tokens com sobreposição de 50 e `TOP_K` 12 (recuperação de 12/14 para 14/14 no conjunto simulado, com menos tokens de trechos por pergunta) |
 
 ## 1. Arquitetura
 
@@ -127,7 +128,7 @@ O worker abre o PDF com PyMuPDF e verifica, nesta ordem:
 - **PDF protegido por senha** (`needs_pass`): `failed` com "o PDF está protegido por senha".
 - **Sem texto extraível** (média menor que ~50 caracteres por página): `failed` com a mensagem de que o arquivo parece ser escaneado (CA03).
 
-Passando pelas verificações, o texto é extraído página a página, a seção de referências é descartada (abaixo), cada página é dividida em trechos de ~500 tokens com sobreposição de ~80, contados com o tokenizador do próprio bge-m3, e os embeddings são gerados em lotes de 16, normalizados e gravados junto com os trechos numa única transação. O documento passa para `ready` (CA01). Como tudo fica no Postgres e nos volumes, os documentos sobrevivem a reinícios (CA10).
+Passando pelas verificações, o texto é extraído página a página, a seção de referências é descartada (abaixo), cada página é dividida em trechos de ~300 tokens com sobreposição de ~50 (calibrados na T35, seção 6.3), contados com o tokenizador do próprio bge-m3, e os embeddings são gerados em lotes de 16, normalizados e gravados junto com os trechos numa única transação. O documento passa para `ready` (CA01). Como tudo fica no Postgres e nos volumes, os documentos sobrevivem a reinícios (CA10).
 
 **Seção de referências:** confirmado no conjunto de avaliação (seção 14), as páginas de referências competem com o conteúdo na busca, porque repetem os termos do artigo em títulos de outros trabalhos. Na extração, o worker procura o título da seção:
 
@@ -141,7 +142,7 @@ Passando pelas verificações, o texto é extraído página a página, a seção
 
 ### 5.4 Dimensionamento
 
-O cenário máximo da spec (100 documentos de 50 páginas, cerca de 5 mil páginas de artigo científico) gera algo entre 10 e 15 mil trechos. Com o bge-m3 em CPU e sequências de ~500 tokens, a indexação inicial desse volume pode levar **horas**. No uso real isso se dilui, porque ela adiciona documentos aos poucos, mas a expectativa precisa ser calibrada com dados reais: uma das primeiras tarefas da implementação é medir o tempo de indexação de 5 documentos típicos e extrapolar.
+O cenário máximo da spec (100 documentos de 50 páginas, cerca de 5 mil páginas de artigo científico) gera cerca de 18 mil trechos de ~300 tokens (3,6 por página no conjunto simulado). Com o bge-m3 em CPU, a indexação inicial desse volume pode levar **horas**. No uso real isso se dilui, porque ela adiciona documentos aos poucos, mas a expectativa precisa ser calibrada com dados reais: uma das primeiras tarefas da implementação é medir o tempo de indexação de 5 documentos típicos e extrapolar.
 
 ### 5.5 Saúde do worker
 
@@ -163,7 +164,7 @@ O tempo segue a medição da T11 (~4,4 s por página). Com poucos documentos sã
 A pergunta chega por `POST /conversations/{id}/messages` e a resposta volta por SSE. O fluxo tem seis etapas:
 
 1. **Salvar e reescrever.** A mensagem da usuária é salva imediatamente (CA12). Se a conversa já tem trocas anteriores, o modelo pequeno reescreve a pergunta como uma pergunta independente usando o histórico preparado (seção 6.1), e a versão reescrita fica registrada em `rewritten_query` (CA11).
-2. **Buscar.** A pergunta (reescrita ou original) é convertida em embedding e o banco busca os 8 trechos mais similares, considerando apenas documentos com status `ready` e sem `deleted_at` (CA05, CA09).
+2. **Buscar.** A pergunta (reescrita ou original) é convertida em embedding e o banco busca os `TOP_K` (12) trechos mais similares, considerando apenas documentos com status `ready` e sem `deleted_at` (CA05, CA09).
 3. **Filtrar por relevância.** Trechos com similaridade abaixo de `MIN_SIMILARITY` são descartados. Se nenhum sobrar, o sistema responde diretamente que não encontrou informação suficiente nos documentos, sem chamar a LLM (CA08). Essa resposta é salva como mensagem da assistente com status `complete` e sem citações, e entra no histórico normalmente, porque é um contexto útil e inofensivo para as perguntas seguintes.
 4. **Montar o prompt.** Instruções em português, os trechos restantes numerados a partir de [1] com arquivo e página, o histórico preparado numa seção claramente delimitada, e a pergunta. As instruções estão na seção 6.2.
 5. **Gerar.** A resposta do modelo principal é transmitida token a token. O modelo é o `openai/gpt-oss-120b`; a qualidade do português dele é avaliada com o conjunto de avaliação (seção 12).
@@ -197,7 +198,7 @@ O conjunto de avaliação (seção 12) inclui perguntas de acompanhamento para v
 
 ### 6.3 Busca e similaridade
 
-A busca é **exata, sem índice vetorial**. Com 10 a 15 mil vetores de 1024 dimensões, uma varredura completa leva poucos milissegundos, e evita um problema do HNSW: o filtro `status = 'ready' AND deleted_at IS NULL` é aplicado depois de percorrer o índice, o que pode devolver menos de 8 trechos quando há documentos removidos. Se o volume crescer muito no futuro, a alternativa é o HNSW com `hnsw.iterative_scan` ativado (pgvector 0.8 ou superior).
+A busca é **exata, sem índice vetorial**. Com cerca de 18 mil vetores de 1024 dimensões, uma varredura completa leva poucos milissegundos, e evita um problema do HNSW: o filtro `status = 'ready' AND deleted_at IS NULL` é aplicado depois de percorrer o índice, o que pode devolver menos de `TOP_K` trechos quando há documentos removidos. Se o volume crescer muito no futuro, a alternativa é o HNSW com `hnsw.iterative_scan` ativado (pgvector 0.8 ou superior).
 
 O operador `<=>` do pgvector devolve **distância** de cosseno. A similaridade usada em todo o sistema é `1 - distância`.
 
@@ -236,7 +237,7 @@ A pergunta da usuária já está salva antes da geração começar. Se o Groq de
 
 ### 6.7 Orçamento de tokens
 
-Cada pergunta consome cerca de 6 mil tokens no modelo principal (4 mil de trechos, 1,5 mil de histórico e 500 de instruções), mais uma chamada pequena ao modelo de reescrita quando há histórico. Com os limites do plano gratuito do Groq para o `openai/gpt-oss-120b` (8 mil tokens por minuto e 200 mil por dia, conferidos no console em 25/09/2026; ver `measurements.md`), isso dá cerca de **33 perguntas por dia e 1 por minuto**. O limite por minuto é o mais apertado: duas perguntas seguidas em menos de um minuto podem esbarrar nele.
+Cada pergunta consome cerca de 6 mil tokens no modelo principal (3,6 mil de trechos, 12 de ~300 tokens; 1,5 mil de histórico e ~700 de instruções), mais uma chamada pequena ao modelo de reescrita quando há histórico. Com os limites do plano gratuito do Groq para o `openai/gpt-oss-120b` (8 mil tokens por minuto e 200 mil por dia, conferidos no console em 25/09/2026; ver `measurements.md`), isso dá cerca de **33 perguntas por dia e 1 por minuto**. O limite por minuto é o mais apertado: duas perguntas seguidas em menos de um minuto podem esbarrar nele.
 
 Isso é pouco para um dia de escrita intensa. As mitigações são: ativar o tier Developer (segundo as fontes consultadas, limites cerca de 10 vezes maiores e custo baixo para o volume de uma usuária, ambos a confirmar no console do Groq); reduzir `TOP_K`, `CHUNK_SIZE` ou `HISTORY_TURNS`; e o próprio filtro de relevância, que tira trechos fracos do prompt. Quando o limite é atingido, o front mostra uma mensagem clara em vez de um erro genérico.
 
@@ -299,8 +300,8 @@ Variáveis do `.env`:
 | `LLM_ANSWER_MODEL` | Modelo que gera as respostas (padrão `openai/gpt-oss-120b`) |
 | `LLM_REWRITE_MODEL` | Modelo que reescreve perguntas e gera títulos (padrão `openai/gpt-oss-20b`) |
 | `EMBEDDING_MODEL` | Modelo de embedding (padrão `BAAI/bge-m3`) |
-| `TOP_K` | Número de trechos recuperados por pergunta |
-| `CHUNK_SIZE` / `CHUNK_OVERLAP` | Tamanho e sobreposição dos trechos, em tokens |
+| `TOP_K` | Número de trechos recuperados por pergunta (padrão 12, calibrado na T35) |
+| `CHUNK_SIZE` / `CHUNK_OVERLAP` | Tamanho e sobreposição dos trechos, em tokens (padrão 300 e 50, calibrados na T35; mudar exige reindexar, seção 5.6) |
 | `MIN_SIMILARITY` | Limiar de similaridade (calibrado na T26, seção 6.3; padrão 0,5) |
 | `HISTORY_TURNS` | Trocas anteriores enviadas à LLM (padrão 3, cerca de 1,5 mil tokens, seção 6.7) |
 | `MAX_ATTEMPTS` | Tentativas de processamento antes de marcar `failed` (padrão 3) |

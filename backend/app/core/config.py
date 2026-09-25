@@ -15,9 +15,10 @@ class Settings(BaseSettings):
     llm_answer_model: str = "openai/gpt-oss-120b"
     llm_rewrite_model: str = "openai/gpt-oss-20b"
     embedding_model: str = "BAAI/bge-m3"
-    top_k: int = 8
-    chunk_size: int = 500
-    chunk_overlap: int = 80
+    # Calibrados na T35 (measurements.md, seção 6.3); mudar o chunking exige reindexar (seção 5.6).
+    top_k: int = 12
+    chunk_size: int = 300
+    chunk_overlap: int = 50
     # Calibrado na T26 com o conjunto de avaliação (measurements.md, seção 6.3).
     min_similarity: float = 0.5
     history_turns: int = 3
