@@ -36,6 +36,23 @@ O tempo acompanha o número de trechos (~1,5 s por trecho de até 500 tokens), n
 
 **Ingestão (CA03, CA04):** `test/ingestion_checks.py` confirmou que um PDF só com imagem termina `failed` com a mensagem de escaneado, que o reenvio dele reprocessa e falha de novo, e que reenviar um artigo já indexado volta como duplicado.
 
+## Avaliação da busca e calibração (T26)
+
+Medido em 25/09/2026 com `test/eval_retrieval.py`: as 16 perguntas de `test/questions.yaml` contra o banco da aplicação (os 5 artigos do conjunto simulado mais 2 PDFs sobre doença articular enviados antes, que entram como ruído realista), sem limiar, com os 12 melhores trechos. Acerto = algum trecho recuperado no documento e na página esperados (nas perguntas `multi_doc`, pelo menos N documentos).
+
+| TOP_K | 4 | 6 | 8 | 10 | 12 |
+|---|---|---|---|---|---|
+| Acertos (14 perguntas com resposta) | 10 | 10 | **11** | 12 | 12 |
+
+- **Cross-lingual (CA09):** as 8 perguntas em português sobre artigos em inglês acertaram, 7 delas em 1º lugar.
+- **Erros com TOP_K=8:** Q01 (creatinina por estágio, D2 p. 3) não aparece nem entre os 12; Q14 (sódio, D2 p. 7) só na 10ª posição; Q09 (prevalência em 3 dos 4 artigos) não reúne documentos suficientes. Nos dois primeiros o texto foi extraído corretamente, mas a informação ocupa uma parte pequena de um trecho de 500 tokens que mistura vários assuntos, o que dilui o embedding. Trechos menores (`CHUNK_SIZE`) são o ajuste natural; exige reindexar e fica como proposta para uma próxima spec.
+- **Similaridades comprimidas:** tudo entre ~0,50 e ~0,75. O acerto mais fraco decidiu com 0,579; a pergunta sem resposta Q12 chegou a 0,553 e a Q13 a **0,660**, acima de vários acertos.
+
+**Decisões:**
+
+- **`MIN_SIMILARITY` = 0,5.** Não barra nenhuma pergunta válida e deixa 0,08 de margem para perguntas reais, mais vagas que as simuladas. Subir até 0,56 barraria a Q12, mas com só 0,02 de margem para o acerto mais fraco (prioridade ao CA09, seção 6.3). Como a Q13 fica acima de acertos válidos, nenhum limiar separa as perguntas sem resposta: o CA08 depende, na prática, da instrução do prompt (seção 6.2), verificada nas respostas (parte 2).
+- **`TOP_K` = 8, mantido.** Com 10 a busca ganharia a Q14, mas cada pergunta passaria de ~7 mil tokens, acima do limite de 8 mil tokens por minuto do Groq quando há histórico (seção 6.7).
+
 ## Latência (T27)
 
 _A preencher._

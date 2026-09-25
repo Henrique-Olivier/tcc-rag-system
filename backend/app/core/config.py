@@ -18,8 +18,8 @@ class Settings(BaseSettings):
     top_k: int = 8
     chunk_size: int = 500
     chunk_overlap: int = 80
-    # Provisório: recalibrar com o conjunto de avaliação (seção 6.3).
-    min_similarity: float = 0.3
+    # Calibrado na T26 com o conjunto de avaliação (measurements.md, seção 6.3).
+    min_similarity: float = 0.5
     history_turns: int = 3
     max_attempts: int = 3
     max_upload_mb: int = 50

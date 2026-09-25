@@ -263,7 +263,7 @@ Variáveis do `.env`:
 | `EMBEDDING_MODEL` | Modelo de embedding (padrão `BAAI/bge-m3`) |
 | `TOP_K` | Número de trechos recuperados por pergunta |
 | `CHUNK_SIZE` / `CHUNK_OVERLAP` | Tamanho e sobreposição dos trechos, em tokens |
-| `MIN_SIMILARITY` | Limiar de similaridade (calibrado, seção 6.3; padrão provisório 0,3) |
+| `MIN_SIMILARITY` | Limiar de similaridade (calibrado na T26, seção 6.3; padrão 0,5) |
 | `HISTORY_TURNS` | Trocas anteriores enviadas à LLM (padrão 3, cerca de 1,5 mil tokens, seção 6.7) |
 | `MAX_ATTEMPTS` | Tentativas de processamento antes de marcar `failed` (padrão 3) |
 | `MAX_UPLOAD_MB` | Tamanho máximo por arquivo (padrão 50) |
