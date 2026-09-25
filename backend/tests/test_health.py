@@ -6,8 +6,9 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.api.main import app
-from app.core.deps import get_session
+from app.core.deps import get_embedder_loader, get_session
 from app.db.models import WorkerHeartbeat
+from app.embeddings.model import EmbedderLoader
 from app.worker.heartbeat import start_heartbeat
 
 pytestmark = pytest.mark.integration
@@ -31,7 +32,7 @@ def test_heartbeat_keeps_beating_during_long_processing(engine, db_session):
 
 
 def test_health_reports_worker_running_or_stopped(client, db_session):
-    assert client.get("/health").json() == {"status": "degraded", "database": "ok", "worker": "stopped"}
+    assert client.get("/health").json() == {"status": "degraded", "database": "ok", "worker": "stopped", "embedding_model": "ready"}
 
     db_session.add(WorkerHeartbeat(id=1, last_seen_at=datetime.now(UTC) - timedelta(seconds=90)))
     db_session.commit()
@@ -39,11 +40,19 @@ def test_health_reports_worker_running_or_stopped(client, db_session):
 
     db_session.get(WorkerHeartbeat, 1).last_seen_at = datetime.now(UTC)
     db_session.commit()
-    assert client.get("/health").json() == {"status": "ok", "database": "ok", "worker": "running"}
+    assert client.get("/health").json() == {"status": "ok", "database": "ok", "worker": "running", "embedding_model": "ready"}
 
 
 def test_health_reports_database_down(client):
     dead = create_engine("postgresql+psycopg://x:y@127.0.0.1:1/nada", connect_args={"connect_timeout": 2})
     app.dependency_overrides[get_session] = lambda: Session(dead)
 
-    assert client.get("/health").json() == {"status": "degraded", "database": "unavailable", "worker": "unknown"}
+    assert client.get("/health").json() == {"status": "degraded", "database": "unavailable", "worker": "unknown", "embedding_model": "ready"}
+
+
+def test_health_reports_embedding_model_loading(client, db_session):
+    db_session.add(WorkerHeartbeat(id=1, last_seen_at=datetime.now(UTC)))
+    db_session.commit()
+    app.dependency_overrides[get_embedder_loader] = EmbedderLoader  # ainda não carregou
+
+    assert client.get("/health").json() == {"status": "degraded", "database": "ok", "worker": "running", "embedding_model": "loading"}

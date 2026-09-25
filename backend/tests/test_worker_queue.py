@@ -1,4 +1,3 @@
-import re
 from datetime import UTC, datetime
 
 import pymupdf
@@ -9,27 +8,11 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.db.models import Chunk, Document
 from app.ingestion.pdf_checks import MSG_NO_TEXT
 from app.worker.queue import MSG_UNEXPECTED, claim_next, process_document, run_once
+from tests.fakes import FakeEmbedder
 
 pytestmark = pytest.mark.integration
 
 TEXT = "Meloxicam foi usado como analgésico em gatos após cirurgia. " * 20
-
-
-class _WordTokenizer:
-    def __call__(self, text, add_special_tokens=False, return_offsets_mapping=True):
-        return {"offset_mapping": [(m.start(), m.end()) for m in re.finditer(r"\S+", text)]}
-
-
-class FakeEmbedder:
-    tokenizer = _WordTokenizer()
-
-    def __init__(self, fail_on: str | None = None) -> None:
-        self.fail_on = fail_on
-
-    def encode(self, texts):
-        if self.fail_on and any(self.fail_on in t for t in texts):
-            raise RuntimeError("falha simulada")
-        return [[1.0] + [0.0] * 1023 for _ in texts]
 
 
 def _document(session, tmp_path, name: str, pages: list[str]) -> Document:

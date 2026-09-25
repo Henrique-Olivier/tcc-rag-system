@@ -78,15 +78,20 @@ def db_session(engine: Engine):
 
 @pytest.fixture
 def client(db_session, tmp_path):
-    """API com a sessão de teste e configurações próprias (PDFs em tmp_path, limite de 1 MB)."""
+    """API com a sessão de teste, configurações próprias (PDFs em tmp_path, limite de 1 MB) e embedding falso."""
     from fastapi.testclient import TestClient
 
     from app.api.main import app
     from app.core.config import Settings, get_settings
-    from app.core.deps import get_session
+    from app.core.deps import get_embedder_loader, get_session
+    from app.embeddings.model import EmbedderLoader
+    from tests.fakes import FakeEmbedder
 
     settings = Settings(_env_file=None, groq_api_key="x", database_url="não usado", data_dir=tmp_path / "pdfs", max_upload_mb=1)
     app.dependency_overrides[get_session] = lambda: db_session
     app.dependency_overrides[get_settings] = lambda: settings
+    loader = EmbedderLoader()
+    loader.embedder = FakeEmbedder()
+    app.dependency_overrides[get_embedder_loader] = lambda: loader
     yield TestClient(app)
     app.dependency_overrides.clear()
