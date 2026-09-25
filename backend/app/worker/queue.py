@@ -42,27 +42,36 @@ def claim_next(session: Session) -> int | None:
     return document.id
 
 
+def build_chunks(document: Document, embedder: EmbeddingModel, chunk_size: int, chunk_overlap: int) -> list[Chunk]:
+    """Verificações, extração sem referências, trechos e embeddings; preenche `num_pages` e `references_start_page`.
+
+    Usado pelo worker e pela reindexação (seção 5.6). Não grava nada: quem chama decide a transação.
+    """
+    with open_checked_pdf(Path(document.file_path)) as pdf:
+        pages, references_page = strip_references(extract_pages(pdf))
+        document.num_pages = pdf.page_count
+    document.references_start_page = references_page
+    if references_page is None:
+        log.info("documento %s sem seção de referências identificada; indexado inteiro", document.id)
+    chunks = chunk_pages(pages, embedder.tokenizer, chunk_size, chunk_overlap)
+    vectors = embedder.encode([chunk.content for chunk in chunks])
+    return [
+        Chunk(document_id=document.id, page_number=c.page_number, chunk_index=c.chunk_index,
+              content=c.content, token_count=c.token_count, embedding=v)
+        for c, v in zip(chunks, vectors, strict=True)
+    ]
+
+
 def process_document(session: Session, document_id: int, embedder: EmbeddingModel, chunk_size: int, chunk_overlap: int) -> None:
     """Nenhuma exceção escapa: falhas viram `failed` e o worker segue para o próximo (seção 5.3)."""
     document = session.get(Document, document_id)
     try:
-        with open_checked_pdf(Path(document.file_path)) as pdf:
-            pages, references_page = strip_references(extract_pages(pdf))
-            num_pages = pdf.page_count
-        chunks = chunk_pages(pages, embedder.tokenizer, chunk_size, chunk_overlap)
-        vectors = embedder.encode([chunk.content for chunk in chunks])
-        session.add_all(
-            Chunk(document_id=document_id, page_number=c.page_number, chunk_index=c.chunk_index,
-                  content=c.content, token_count=c.token_count, embedding=v)
-            for c, v in zip(chunks, vectors, strict=True)
-        )
+        chunks = build_chunks(document, embedder, chunk_size, chunk_overlap)
+        session.add_all(chunks)
         # Só as colunas alteradas vão no UPDATE: um soft delete feito durante o processamento é preservado.
-        document.status, document.num_pages, document.error_message = "ready", num_pages, None
-        document.references_start_page = references_page
-        if references_page is None:
-            log.info("documento %s sem seção de referências identificada; indexado inteiro", document_id)
+        document.status, document.error_message = "ready", None
         session.commit()
-        log.info("documento %s pronto: %s páginas, %s trechos", document_id, num_pages, len(chunks))
+        log.info("documento %s pronto: %s páginas, %s trechos", document_id, document.num_pages, len(chunks))
     except PdfRejected as exc:
         _mark_failed(session, document_id, exc.message)
     except Exception:
