@@ -11,6 +11,7 @@ Este plano descreve **como** atender a Spec 001. Cada decisão importante aponta
 | v1 | Versão inicial |
 | v2 | Fila de ingestão no banco e worker em processo separado; regras de reenvio considerando status; marcadores removidos do histórico; fechamento explícito de conversas ao carregar o front; latência e dimensionamento cobertos; busca exata sem HNSW; limiar calibrado com perguntas cross-lingual; orçamento do Groq corrigido; tratamento de falhas no streaming; detalhes de segurança e numeração de páginas; decisão sobre envio de dados ao Groq |
 | v3 | Limite de tentativas e captura de exceções no worker; serviço `migrate` e healthcheck do banco; heartbeat e reinício automático do worker; divisão de CPU por núcleos físicos; gravação protegida do erro após desconexão; tratamento do 409 com várias abas; instruções sobre o histórico no prompt; destino da resposta "não encontrei"; upload duplicado concorrente; posição na fila na API; limite de tamanho de upload; correções pontuais de texto |
+| v4 | React Router e shadcn/ui (Tailwind) no front-end; padrões provisórios de `HISTORY_TURNS` e `MIN_SIMILARITY`; variáveis `POSTGRES_*` do container do banco; proxy de `/api` remove o prefixo; porta do banco publicada em `127.0.0.1` para os testes de integração |
 
 ## 1. Arquitetura
 
@@ -32,7 +33,7 @@ Os PDFs ficam num volume compartilhado entre `api` e `worker`, e o cache do Hugg
 
 **Back-end (api e worker):** Python 3.12, FastAPI, SQLAlchemy 2 com Alembic para migrações, psycopg 3, a biblioteca `pgvector` para Python, PyMuPDF para extração, sentence-transformers com `BAAI/bge-m3` (vetores de 1024 dimensões), pydantic-settings para configuração e pytest para testes. A comunicação com o Groq usa o SDK da OpenAI apontando para a URL do Groq, já que a API é compatível, o que deixa trocar de provedor trivial.
 
-**Front-end:** React com Vite e TypeScript, TanStack Query para chamadas e cache da API, react-pdf para o visualizador de PDF, e `@microsoft/fetch-event-source` para o streaming. Esse último é necessário porque o `EventSource` nativo do navegador só faz GET, e o envio de pergunta é POST.
+**Front-end:** React com Vite e TypeScript, TanStack Query para chamadas e cache da API, react-pdf para o visualizador de PDF, e `@microsoft/fetch-event-source` para o streaming. Esse último é necessário porque o `EventSource` nativo do navegador só faz GET, e o envio de pergunta é POST. React Router para as páginas, preparando o front para funcionalidades futuras; o id da conversa atual continua fora da URL (seção 7). shadcn/ui, sobre Tailwind CSS, para os componentes visuais; os componentes são copiados para `src/components/ui/` e só entram os que forem usados.
 
 ## 3. Estrutura do repositório
 
@@ -51,7 +52,7 @@ rag-tcc/
 │   │   ├── llm/              interface do provedor + implementação Groq
 │   │   └── chat/             reescrita, histórico, prompt, streaming, citações
 │   └── tests/
-├── frontend/src/             api/, components/, pages/, hooks/
+├── frontend/src/             api/, components/ (ui/ do shadcn), pages/, hooks/, lib/
 ├── docker-compose.yml
 └── .env.example
 ```
@@ -257,12 +258,13 @@ Variáveis do `.env`:
 | `EMBEDDING_MODEL` | Modelo de embedding (padrão `BAAI/bge-m3`) |
 | `TOP_K` | Número de trechos recuperados por pergunta |
 | `CHUNK_SIZE` / `CHUNK_OVERLAP` | Tamanho e sobreposição dos trechos, em tokens |
-| `MIN_SIMILARITY` | Limiar de similaridade (calibrado, seção 6.3) |
-| `HISTORY_TURNS` | Trocas anteriores enviadas à LLM |
+| `MIN_SIMILARITY` | Limiar de similaridade (calibrado, seção 6.3; padrão provisório 0,3) |
+| `HISTORY_TURNS` | Trocas anteriores enviadas à LLM (padrão 3, cerca de 1,5 mil tokens, seção 6.7) |
 | `MAX_ATTEMPTS` | Tentativas de processamento antes de marcar `failed` (padrão 3) |
 | `MAX_UPLOAD_MB` | Tamanho máximo por arquivo (padrão 50) |
 | `API_TORCH_THREADS` / `WORKER_TORCH_THREADS` | Threads do PyTorch em cada processo (padrão 2 e 4) |
 | `DATABASE_URL` | Conexão com o Postgres |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Credenciais do container `db`; devem bater com o `DATABASE_URL` |
 | `DATA_DIR` | Diretório dos PDFs |
 
 Cada processo também define `OMP_NUM_THREADS` e `MKL_NUM_THREADS` com o mesmo valor de suas threads do PyTorch, e `TOKENIZERS_PARALLELISM=false`, porque o tokenizador do Hugging Face cria threads próprias que escapariam ao limite.
@@ -275,7 +277,9 @@ A camada de LLM é uma interface `LLMProvider` com dois métodos, `complete` e `
 - **`migrate`:** mesma imagem do back-end, roda `alembic upgrade head` e termina. Depende do `db` com `condition: service_healthy`.
 - **`api`:** depende do `migrate` com `condition: service_completed_successfully`. Sobe o uvicorn com **um único worker** (`--workers 1`), para não duplicar o modelo em memória. Monta os volumes de PDFs e do cache do Hugging Face. `restart: unless-stopped`.
 - **`worker`:** mesma imagem, outro entrypoint, executado com `nice -n 10` para ceder a vez à `api` quando houver disputa. Depende do `migrate` com `condition: service_completed_successfully`, monta os mesmos volumes e tem `restart: unless-stopped`.
-- **`frontend`:** servidor do Vite em desenvolvimento; numa versão de produção, Nginx servindo o build com proxy de `/api` para o back-end.
+- **`frontend`:** servidor do Vite em desenvolvimento; numa versão de produção, Nginx servindo o build com proxy de `/api` para o back-end. Nos dois casos o proxy remove o prefixo (`/api/health` → `/health`), mantendo as rotas da seção 8.
+
+O `db` publica a porta 5432 em `127.0.0.1` para os testes de integração rodarem de fora do Compose (seção 12).
 
 **Divisão de CPU:** o processador de referência (Ryzen 5 5600G) tem 6 núcleos físicos e 12 threads lógicas, e em multiplicação de matrizes o hyperthreading rende pouco, então a divisão é pensada em núcleos físicos. O ponto de partida é 4 threads para o worker e 2 para a `api`. Como o limite de threads não isola nada por si só (quem escala os processos é o sistema operacional), o worker também recebe `cpus: "4"` no Compose, garantindo que nunca ocupe mais do que o equivalente a 4 núcleos, e a prioridade reduzida com `nice`. O `cpuset` isolaria núcleos específicos, mas só vale a pena num Linux nativo, depois de conferir com `lscpu` quais CPUs lógicas pertencem a cada núcleo; no Docker Desktop as CPUs são da VM, e o `cpuset` não corresponde aos núcleos físicos. Na prática o risco é menor do que parece, porque o embedding de uma pergunta curta é leve, mas os números são ajustados com o teste de latência (seção 12).
 

@@ -16,7 +16,7 @@ O plano não define testes automatizados de front-end, então as tarefas de fron
 
 ### T00 — Scaffolding do repositório ✅
 
-Monorepo, back-end com uv e pacotes da seção 3, config da seção 10, `/health` mínimo, worker vazio, Alembic com a extensão `vector`, front-end com proxy de `/api`, Docker Compose com os cinco serviços. Commit `bebf16b`.
+Monorepo, back-end com uv e pacotes da seção 3, config da seção 10, `/health` mínimo, worker vazio, Alembic com a extensão `vector`, front-end com proxy de `/api`, React Router e shadcn/ui (plano v4), Docker Compose com os cinco serviços. Commits `bebf16b` e o de router/shadcn.
 
 - **Plano:** 2, 3, 10, 11
 
