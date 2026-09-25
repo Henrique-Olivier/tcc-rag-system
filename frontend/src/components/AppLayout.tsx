@@ -1,4 +1,5 @@
 import { Outlet } from 'react-router'
+import ConversationsSection from '@/components/ConversationsSection'
 import DocumentsSection from '@/components/DocumentsSection'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
@@ -19,6 +20,7 @@ export default function AppLayout() {
           <Separator />
           <section className="p-4">
             <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Conversas</h2>
+            <ConversationsSection />
           </section>
         </ScrollArea>
       </aside>

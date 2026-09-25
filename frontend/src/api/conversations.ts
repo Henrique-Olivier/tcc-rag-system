@@ -57,3 +57,25 @@ export function streamAnswer(conversationId: number, question: string, handlers:
     },
   })
 }
+
+export type SavedMessage = {
+  id: number
+  role: 'user' | 'assistant'
+  content: string
+  status: 'complete' | 'error'
+  created_at: string
+  citations: Source[]
+}
+
+export type ConversationDetail = Conversation & { messages: SavedMessage[] }
+
+export const listConversations = () => request<Conversation[]>('/conversations')
+
+export const getConversation = (id: number) => request<ConversationDetail>(`/conversations/${id}`)
+
+export const deleteConversation = (id: number) => request<void>(`/conversations/${id}`, { method: 'DELETE' })
+
+export const conversationTitle = (conversation: Conversation) => conversation.title ?? 'Conversa sem título'
+
+export const formatDate = (iso: string) =>
+  new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
