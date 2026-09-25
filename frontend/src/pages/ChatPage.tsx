@@ -1,5 +1,7 @@
 import { SendHorizontal, SquarePen } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import type { Source } from '@/api/conversations'
+import CitationPanel from '@/components/CitationPanel'
 import MessageBubble from '@/components/MessageBubble'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -9,6 +11,7 @@ import { useCurrentConversation } from '@/hooks/useCurrentConversation'
 export default function ChatPage() {
   const { messages, ready, sending, closedElsewhere, send, newConversation } = useCurrentConversation()
   const [question, setQuestion] = useState('')
+  const [cited, setCited] = useState<Source | null>(null)
   const bottom = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -44,7 +47,15 @@ export default function ChatPage() {
             </p>
           )}
           {messages.map((message) => (
-            <MessageBubble key={message.key} role={message.role} content={message.content} status={message.status} error={message.error} />
+            <MessageBubble
+              key={message.key}
+              role={message.role}
+              content={message.content}
+              status={message.status}
+              error={message.error}
+              sources={message.sources}
+              onCite={setCited}
+            />
           ))}
           <div ref={bottom} />
         </div>
@@ -79,6 +90,7 @@ export default function ChatPage() {
           </Button>
         </form>
       </div>
+      <CitationPanel source={cited} onClose={() => setCited(null)} />
     </div>
   )
 }
