@@ -1,0 +1,203 @@
+# Conjunto de avaliação simulado — Spec 001
+# pages: páginas do ARQUIVO PDF, começando em 1 (o que o sistema grava em page_number).
+# expected: basta um trecho recuperado cair em qualquer (doc, página) listado para contar como acerto,
+#           exceto quando min_docs: N (acerto só se pelo menos N documentos diferentes forem recuperados).
+# key_facts: o que uma boa resposta deve conter (paráfrase, para avaliação manual dos CAs 06 a 09).
+
+documents:
+  D1: freitas2025_vetworld_pressao_proteinuria.pdf
+  D2: miranda2024_fag_estadiamento_drc.pdf
+  D3: vergnano2016_actascivet_suplemento.pdf
+  D4: morita2025_frontiers_anlodipina_caes.pdf
+  D5: anotacoes_aula_escaneado.pdf   # deve falhar na ingestão (CA03)
+  D6: oliveira2020_mvez_sdma.pdf
+
+questions:
+  - id: Q01
+    type: single_doc
+    question: Quais são os valores de creatinina que definem cada estágio da DRC em gatos?
+    expected: [{doc: D2, pages: [3]}]
+    key_facts:
+      - Estágio II entre 1,6 e 2,8 mg/dL; III entre 2,9 e 5,0 mg/dL; IV acima de 5,0 mg/dL.
+      - Estágio I sem azotemia.
+    cas: [CA06, CA07]
+
+  - id: Q02
+    type: cross_lingual
+    question: Existe correlação entre pressão arterial sistólica e proteinúria em gatos idosos ou com doença renal?
+    expected: [{doc: D1, pages: [1, 5, 6]}]
+    key_facts:
+      - O estudo não encontrou correlação direta entre pressão sistólica e proteinúria.
+      - Gatos idosos tiveram valores absolutos de pressão sistólica mais altos.
+    cas: [CA07, CA09]
+
+  - id: Q03
+    type: cross_lingual
+    question: Quais sinais clínicos foram observados nos gatos com DRC e em que proporção?
+    expected: [{doc: D1, pages: [3]}]
+    key_facts:
+      - Pelagem opaca ou queda de pelo foi o sinal mais frequente (cerca de 62%), seguido de vômito (cerca de 54%).
+      - Também perda de massa muscular ou peso e hiporexia/anorexia (cerca de 46% cada).
+    cas: [CA07, CA09]
+
+  - id: Q04
+    type: cross_lingual
+    question: O efeito do jaleco branco pode alterar a pressão arterial medida em gatos?
+    expected: [{doc: D1, pages: [6]}]
+    key_facts:
+      - O estresse do ambiente hospitalar pode elevar a pressão dos gatos em cerca de 17 mmHg em média, com variações individuais bem maiores.
+      - Os autores usam isso para explicar valores elevados até no grupo de gatos jovens.
+    cas: [CA09]
+
+  - id: Q05
+    type: cross_lingual
+    question: Qual foi a dose do suplemento quelante de fósforo usado nos gatos com DRC avançada e por quanto tempo?
+    expected: [{doc: D3, pages: [2, 3]}]
+    key_facts:
+      - 0,2 g/kg/dia, dividido em duas administrações misturadas ao alimento, por 60 dias.
+    cas: [CA07, CA09]
+
+  - id: Q06
+    type: cross_lingual
+    question: Quanto o fósforo sérico caiu com o suplemento e em quanto tempo atingiu a meta do estágio 3?
+    expected: [{doc: D3, pages: [2, 4, 7]}]
+    key_facts:
+      - Redução de cerca de 59% entre o início e o dia 60.
+      - A meta de fósforo do estágio 3 foi atingida por volta do dia 30.
+    cas: [CA07, CA09]
+
+  - id: Q07
+    type: cross_lingual
+    question: Com que frequência a acidose metabólica aparece nos estágios 3 e 4 da DRC felina?
+    expected: [{doc: D3, pages: [7]}]
+    key_facts:
+      - Cerca de 15% dos gatos no estágio 3 e mais da metade no estágio 4.
+      - Na inclusão do estudo, 90% dos gatos tinham bicarbonato abaixo do normal.
+    cas: [CA07, CA09]
+
+  - id: Q08
+    type: single_doc
+    question: Quando a hipertensão deve ser tratada em gatos com DRC nos estágios I e II, e com qual fármaco?
+    expected: [{doc: D2, pages: [5]}]
+    key_facts:
+      - Acima de 180/120 mmHg, com bloqueador de canal de cálcio, sendo o besilato de anlodipino o mais usado.
+    cas: [CA06, CA07]
+    notes: A resposta não deve trazer dados de D4 (cães) como se fossem de gatos.
+
+  - id: Q09
+    type: multi_doc
+    min_docs: 3
+    question: Qual a prevalência de DRC em gatos idosos segundo os artigos?
+    expected:
+      - {doc: D1, pages: [4]}
+      - {doc: D2, pages: [2]}
+      - {doc: D3, pages: [3]}
+      - {doc: D6, pages: [2, 3]}
+    key_facts:
+      - Os números variam entre os artigos (algo como até 30% acima de 15 anos, até 40% acima de 10 anos, até 50% acima de 15 anos, e 1,6 a 20% na população geral de gatos), e uma boa resposta deixa essa divergência clara, citando cada fonte.
+    cas: [CA07, CA09]
+    notes: >
+      Pergunta de exaustividade: conta como acerto se pelo menos 3 dos 4 documentos forem recuperados.
+      Com TOP_K=8 é possível que algum fique de fora; registrar quantos vieram. Bom caso para a busca da Spec 002.
+
+  - id: Q10
+    type: trap_species
+    question: A anlodipina melhora o SDMA em gatos com doença renal crônica?
+    expected: [{doc: D4, pages: [1, 5, 9]}]
+    key_facts:
+      - O único estudo disponível avaliou cães, não gatos; a resposta precisa dizer isso explicitamente.
+      - Nos cães, o SDMA caiu após a anlodipina, com e sem hipertensão.
+    cas: [CA06, CA08]
+    notes: Falha grave se a resposta afirmar o efeito em gatos.
+
+  - id: Q11
+    type: cross_lingual
+    question: Quais efeitos colaterais da anlodipina foram relatados?
+    expected: [{doc: D4, pages: [5, 8]}]
+    key_facts:
+      - Apenas um caso de hiperplasia gengival entre 45 cães (cerca de 2%), menos que os 8,5% de um estudo anterior citado.
+    cas: [CA07, CA09]
+
+  - id: Q12
+    type: no_answer
+    question: Qual a dose de mirtazapina para estimular o apetite em gatos com DRC?
+    expected: []
+    key_facts:
+      - Nenhum documento trata de mirtazapina; o sistema deve responder que não encontrou a informação.
+    cas: [CA08]
+
+  - id: Q13
+    type: no_answer
+    question: Quais são os critérios para indicar transplante renal em gatos?
+    expected: []
+    key_facts:
+      - Nenhum documento trata de transplante renal em gatos.
+      - Atenção: D4 menciona transplante renal em humanos; a resposta não deve usar isso.
+    cas: [CA06, CA08]
+
+  - id: Q14
+    type: single_doc
+    question: Há divergência entre os autores sobre restringir sódio na dieta de gatos renais?
+    expected: [{doc: D2, pages: [7]}]
+    key_facts:
+      - Uns defendem a restrição para evitar retenção de sódio e água; outros alertam que ela pode ativar o sistema renina-angiotensina-aldosterona.
+    cas: [CA07]
+
+  - id: Q15
+    type: single_doc
+    question: A partir de quais valores de SDMA o gato é enquadrado em cada estágio da DRC?
+    expected: [{doc: D6, pages: [4]}]
+    key_facts:
+      - Acima de 14 μg/dL indica redução da função renal com creatinina ainda no estágio 1; a partir de 25 μg/dL, estágio 2; a partir de 45 μg/dL, estágio 3.
+      - O artigo ressalva que esses valores ainda precisavam de confirmação.
+    cas: [CA06, CA07]
+
+  - id: Q16
+    type: multi_doc
+    min_docs: 2
+    question: Com quanto de perda de função renal o SDMA começa a subir?
+    expected:
+      - {doc: D6, pages: [1, 2, 4]}
+      - {doc: D4, pages: [2]}
+    key_facts:
+      - Um artigo fala em cerca de 40% de perda de função (D4, em inglês) e outro em cerca de 50% (D6, em português); uma boa resposta mostra as duas fontes e a diferença.
+      - D6 também diz que em gatos o SDMA sobe cerca de 15 meses antes da creatinina.
+    cas: [CA07, CA09]
+    notes: Mistura um documento em português e outro em inglês sobre o mesmo ponto; testa se a busca traz os dois.
+
+follow_ups:
+  # Sequências para o CA11 (contexto dentro da sessão). Enviar na ordem, na mesma conversa.
+  - id: F01
+    turns:
+      - question: Quais são os valores de creatinina de cada estágio IRIS em gatos?
+        expected: [{doc: D2, pages: [3]}]
+      - question: E qual o alvo de fósforo no estágio IV?
+        expected: [{doc: D2, pages: [5]}]
+        key_facts: [Manter o fósforo abaixo de 6,0 mg/dL.]
+      - question: E no estágio III?
+        expected: [{doc: D3, pages: [7]}]
+        key_facts: [Faixa-alvo de 2,7 a 5,0 mg/dL, segundo D3.]
+        notes: A reescrita deve produzir algo como "alvo de fósforo no estágio III da DRC em gatos".
+    cas: [CA11, CA09]
+
+  - id: F02
+    turns:
+      - question: O que o estudo com anlodipina concluiu sobre o SDMA?
+        expected: [{doc: D4, pages: [1, 9]}]
+      - question: E teve efeitos colaterais?
+        expected: [{doc: D4, pages: [5, 8]}]
+      - question: Isso vale para gatos?
+        expected: []
+        key_facts: [Deve dizer que o estudo foi feito em cães e que os documentos não trazem dados de anlodipina e SDMA em gatos.]
+        notes: Testa CA11 junto com CA06/CA08. A resposta não deve extrapolar para gatos.
+    cas: [CA11, CA06, CA08]
+
+ingestion_checks:
+  - doc: D5
+    expected_status: failed
+    expected_message_contains: escaneado
+    cas: [CA03]
+  - doc: D1
+    reupload: true
+    expected_result: duplicate
+    cas: [CA04]
