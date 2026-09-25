@@ -1,6 +1,6 @@
 # Tarefas 001 — MVP Assistente de pesquisa para TCC
 
-> Spec: `spec.md` · Plano: `plan.md` (v4) · Quadro: https://trello.com/b/kiVC5tnp/projeto-rag-tcc
+> Spec: `spec.md` · Plano: `plan.md` (v5) · Quadro: https://trello.com/b/kiVC5tnp/projeto-rag-tcc
 
 Tarefas pequenas, em ordem de dependência. Cada uma aponta os CAs que atende e as seções do plano que a descrevem. Uma tarefa só está pronta quando os testes indicados em "Pronto quando" passam.
 
@@ -228,7 +228,7 @@ Upload por arrastar ou selecionar vários arquivos, resultado por arquivo (novo,
 
 ### T23 — Chat com streaming
 
-Envio de pergunta com `@microsoft/fetch-event-source`, resposta aparecendo token a token, criação da conversa na primeira mensagem, botão "Nova conversa" e tratamento do 409 (mensagem da seção 7, botão para nova conversa, pergunta mantida no campo). Mensagem clara quando o limite do Groq é atingido.
+Envio de pergunta com `@microsoft/fetch-event-source`, resposta aparecendo token a token e renderizada como markdown (`react-markdown`), criação da conversa na primeira mensagem, botão "Nova conversa" e tratamento do 409 (mensagem da seção 7, botão para nova conversa, pergunta mantida no campo). Mensagem clara quando o limite do Groq é atingido.
 
 - **CAs:** 11, 12, 13
 - **Plano:** 6.5, 6.7, 7, 9
@@ -237,7 +237,7 @@ Envio de pergunta com `@microsoft/fetch-event-source`, resposta aparecendo token
 
 ### T24 — Citações e visualizador de PDF
 
-Marcadores [n] clicáveis que abrem um painel com o trecho, o arquivo e a página, e um botão que abre o PDF naquela página com react-pdf.
+Marcadores [n] clicáveis dentro do markdown renderizado, que abrem um painel com o trecho, o arquivo e a página, e um botão que abre o PDF naquela página com react-pdf.
 
 - **CAs:** 07
 - **Plano:** 9

@@ -12,6 +12,7 @@ Este plano descreve **como** atender a Spec 001. Cada decisão importante aponta
 | v2 | Fila de ingestão no banco e worker em processo separado; regras de reenvio considerando status; marcadores removidos do histórico; fechamento explícito de conversas ao carregar o front; latência e dimensionamento cobertos; busca exata sem HNSW; limiar calibrado com perguntas cross-lingual; orçamento do Groq corrigido; tratamento de falhas no streaming; detalhes de segurança e numeração de páginas; decisão sobre envio de dados ao Groq |
 | v3 | Limite de tentativas e captura de exceções no worker; serviço `migrate` e healthcheck do banco; heartbeat e reinício automático do worker; divisão de CPU por núcleos físicos; gravação protegida do erro após desconexão; tratamento do 409 com várias abas; instruções sobre o histórico no prompt; destino da resposta "não encontrei"; upload duplicado concorrente; posição na fila na API; limite de tamanho de upload; correções pontuais de texto |
 | v4 | React Router e shadcn/ui (Tailwind) no front-end; padrões provisórios de `HISTORY_TURNS` e `MIN_SIMILARITY`; variáveis `POSTGRES_*` do container do banco; proxy de `/api` remove o prefixo; porta do banco publicada em `127.0.0.1` para os testes de integração |
+| v5 | Respostas do chat renderizadas como markdown (`react-markdown`), com os marcadores [n] clicáveis |
 
 ## 1. Arquitetura
 
@@ -33,7 +34,7 @@ Os PDFs ficam num volume compartilhado entre `api` e `worker`, e o cache do Hugg
 
 **Back-end (api e worker):** Python 3.12, FastAPI, SQLAlchemy 2 com Alembic para migrações, psycopg 3, a biblioteca `pgvector` para Python, PyMuPDF para extração, sentence-transformers com `BAAI/bge-m3` (vetores de 1024 dimensões), pydantic-settings para configuração e pytest para testes. A comunicação com o Groq usa o SDK da OpenAI apontando para a URL do Groq, já que a API é compatível, o que deixa trocar de provedor trivial.
 
-**Front-end:** React com Vite e TypeScript, TanStack Query para chamadas e cache da API, react-pdf para o visualizador de PDF, e `@microsoft/fetch-event-source` para o streaming. Esse último é necessário porque o `EventSource` nativo do navegador só faz GET, e o envio de pergunta é POST. React Router para as páginas, preparando o front para funcionalidades futuras; o id da conversa atual continua fora da URL (seção 7). shadcn/ui, sobre Tailwind CSS, para os componentes visuais; os componentes são copiados para `src/components/ui/` e só entram os que forem usados.
+**Front-end:** React com Vite e TypeScript, TanStack Query para chamadas e cache da API, react-pdf para o visualizador de PDF, e `@microsoft/fetch-event-source` para o streaming. Esse último é necessário porque o `EventSource` nativo do navegador só faz GET, e o envio de pergunta é POST. React Router para as páginas, preparando o front para funcionalidades futuras; o id da conversa atual continua fora da URL (seção 7). shadcn/ui, sobre Tailwind CSS, para os componentes visuais; os componentes são copiados para `src/components/ui/` e só entram os que forem usados. `react-markdown` renderiza as respostas da LLM (listas, negrito), mantendo os marcadores [n] clicáveis.
 
 ## 3. Estrutura do repositório
 
