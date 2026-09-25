@@ -1,4 +1,4 @@
-# Conjunto de avaliação simulado — Spec 001
+  # Conjunto de avaliação simulado — Spec 001
 
 Insumo provisório para as tarefas **T11** (dimensionamento), **T26** (avaliação e calibração) e **T27** (latência), enquanto os artigos e perguntas reais da usuária não chegam. Quando chegarem, este conjunto continua útil como teste de regressão.
 

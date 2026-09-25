@@ -63,4 +63,19 @@ Medido em 25/09/2026 com `test/eval_retrieval.py`: as 16 perguntas de `test/ques
 
 ## Latência (T27)
 
-_A preencher._
+Medido em 25/09/2026 com `test/measure_latency.py`: tempo entre o envio da pergunta e o fim da resposta (evento `done`), Q01 a Q05 do conjunto simulado, cada uma numa conversa nova, 65 s entre perguntas por causa do limite do Groq. No cenário com indexação, o worker processava um PDF sintético de 80 páginas enviado antes das perguntas.
+
+| Pergunta | Ocioso | Worker indexando |
+|---|---|---|
+| Q01 | 10,5 s | 3,3 s |
+| Q02 | 2,8 s | 3,7 s |
+| Q03 | 3,8 s | 3,1 s |
+| Q04 | 2,8 s | 2,4 s |
+| Q05 | 2,9 s | 1,9 s¹ |
+| **Média / máximo** | **4,6 s / 10,5 s** | **2,9 s / 3,7 s** |
+
+¹ A indexação terminou pouco antes da Q05; as outras quatro rodaram com o documento em `processing`.
+
+- **RNF de ~15 s atendido nos dois cenários**, com folga. A divisão de CPU da seção 11 (worker com 4 threads, `cpus: 4` e `nice 10`) funciona: a indexação não atrasou as perguntas. Não há ajuste de threads a fazer.
+- **Q01 ociosa (10,5 s):** foi a primeira pergunta depois de recriar a `api`; o tempo extra é aquecimento (primeira execução do modelo de embedding e primeiras conexões), não se repetiu.
+- A maior parte do tempo é a geração no Groq; busca e embedding da pergunta levam frações de segundo.
