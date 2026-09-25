@@ -6,7 +6,7 @@ import time
 from app.core.config import get_settings
 from app.db.session import get_sessionmaker
 from app.embeddings.model import Embedder
-from app.worker.queue import run_once
+from app.worker.queue import recover_interrupted, run_once
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("worker")
@@ -18,6 +18,8 @@ def main() -> None:
     settings = get_settings()
     embedder = Embedder(settings.embedding_model, settings.worker_torch_threads)
     sessions = get_sessionmaker()
+    with sessions() as session:
+        recover_interrupted(session, settings.max_attempts)
     log.info("worker iniciado")
     while True:
         try:

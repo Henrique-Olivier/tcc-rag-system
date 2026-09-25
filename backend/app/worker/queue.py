@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 from typing import Protocol
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.db.models import Chunk, Document
@@ -14,6 +14,7 @@ from app.ingestion.pdf_checks import PdfRejected, open_checked_pdf
 log = logging.getLogger("worker")
 
 MSG_UNEXPECTED = "erro inesperado ao processar o arquivo"
+MSG_REPEATED_FAILURE = "o processamento deste arquivo falhou repetidamente"
 
 
 class EmbeddingModel(Protocol):
@@ -81,3 +82,18 @@ def run_once(sessions: sessionmaker[Session], embedder: EmbeddingModel, chunk_si
             return False
         process_document(session, document_id, embedder, chunk_size, chunk_overlap)
         return True
+
+
+def recover_interrupted(session: Session, max_attempts: int) -> None:
+    """Na inicialização: `processing` só existe se o processo anterior morreu no meio (seção 5.2).
+
+    O limite de tentativas impede que um arquivo que derruba o processo trave a fila.
+    """
+    for document in session.scalars(select(Document).where(Document.status == "processing")):
+        session.execute(delete(Chunk).where(Chunk.document_id == document.id))
+        if document.attempts < max_attempts:
+            document.status = "pending"
+        else:
+            document.status, document.error_message = "failed", MSG_REPEATED_FAILURE
+        log.warning("documento %s interrompido: %s (tentativa %s)", document.id, document.status, document.attempts)
+    session.commit()
