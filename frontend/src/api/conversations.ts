@@ -11,7 +11,7 @@ export type Conversation = {
 /** Trecho enviado no prompt (evento `sources`) ou citação salva (conversa salva). */
 export type Source = {
   marker: number
-  chunk_id: number
+  chunk_id: number | null
   document_id: number
   filename: string
   page_number: number

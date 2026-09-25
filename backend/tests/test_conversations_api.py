@@ -83,3 +83,23 @@ def test_conversation_state_distinguishes_open_closed_and_missing(client, db_ses
     assert conversation_state(db_session, second) == ConversationState.OPEN
     assert conversation_state(db_session, first) == ConversationState.CLOSED
     assert conversation_state(db_session, 999) == ConversationState.NOT_FOUND
+
+
+def test_citation_survives_when_its_chunk_is_replaced(client, db_session):
+    doc = Document(filename="artigo.pdf", file_hash="r" * 64, file_path="x", status="ready")
+    db_session.add(doc)
+    db_session.flush()
+    chunk = Chunk(document_id=doc.id, page_number=2, chunk_index=0, content="trecho", token_count=1, embedding=unit_vector(1.0))
+    db_session.add(chunk)
+    db_session.commit()
+    conversation_id = client.post("/conversations").json()["id"]
+    answer = _add_message(db_session, conversation_id, "assistant", "Resposta [1].")
+    db_session.add(Citation(message_id=answer.id, chunk_id=chunk.id, document_id=doc.id, marker=1,
+                            filename="artigo.pdf", page_number=2, excerpt="trecho copiado"))
+    db_session.commit()
+
+    db_session.delete(chunk)  # o que a reindexação faz (seção 5.6)
+    db_session.commit()
+
+    [citation] = client.get(f"/conversations/{conversation_id}").json()["messages"][0]["citations"]
+    assert (citation["chunk_id"], citation["excerpt"], citation["page_number"]) == (None, "trecho copiado", 2)

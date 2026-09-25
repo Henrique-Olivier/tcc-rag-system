@@ -3,7 +3,7 @@
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, Text, false, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 EMBEDDING_DIM = 1024
@@ -24,6 +24,8 @@ class Document(Base):
     file_hash: Mapped[str] = mapped_column(String(64), unique=True)
     file_path: Mapped[str] = mapped_column(Text)
     num_pages: Mapped[int | None] = mapped_column(Integer)
+    # Página onde começa a seção de referências; nulo se não foi encontrada (seção 5.3).
+    references_start_page: Mapped[int | None] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String(16), default="pending")
     error_message: Mapped[str | None] = mapped_column(Text)
     attempts: Mapped[int] = mapped_column(default=0)
@@ -66,6 +68,8 @@ class Message(Base):
     content: Mapped[str] = mapped_column(Text, default="")
     rewritten_query: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(16), default="complete")
+    # Resposta da LLM com conteúdo e sem nenhum marcador válido (seção 6.4).
+    uncited: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -76,7 +80,8 @@ class Citation(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     message_id: Mapped[int] = mapped_column(ForeignKey("messages.id", ondelete="CASCADE"), index=True)
-    chunk_id: Mapped[int] = mapped_column(ForeignKey("chunks.id"))
+    # Opcional: a citação sobrevive à reindexação pelas cópias abaixo (seção 5.6).
+    chunk_id: Mapped[int | None] = mapped_column(ForeignKey("chunks.id", ondelete="SET NULL"))
     document_id: Mapped[int] = mapped_column(ForeignKey("documents.id"))
     marker: Mapped[int]
     filename: Mapped[str] = mapped_column(Text)

@@ -44,7 +44,7 @@ class CitationOut(BaseModel):
 
     marker: int
     document_id: int
-    chunk_id: int
+    chunk_id: int | None
     filename: str
     page_number: int
     excerpt: str
@@ -58,6 +58,7 @@ class MessageOut(BaseModel):
     role: str
     content: str
     status: str
+    uncited: bool
     created_at: datetime
     citations: list[CitationOut]
 

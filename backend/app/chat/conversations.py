@@ -20,7 +20,7 @@ class ConversationState(Enum):
 class CitationView:
     marker: int
     document_id: int
-    chunk_id: int
+    chunk_id: int | None
     filename: str
     page_number: int
     excerpt: str
@@ -33,6 +33,7 @@ class MessageView:
     role: str
     content: str
     status: str
+    uncited: bool
     created_at: datetime
     citations: list[CitationView]
 
@@ -87,7 +88,7 @@ def get_detail(session: Session, conversation_id: int) -> ConversationDetail | N
         citations.setdefault(c.message_id, []).append(
             CitationView(c.marker, c.document_id, c.chunk_id, c.filename, c.page_number, c.excerpt, deleted_at is not None)
         )
-    views = [MessageView(m.id, m.role, m.content, m.status, m.created_at, citations.get(m.id, [])) for m in messages]
+    views = [MessageView(m.id, m.role, m.content, m.status, m.uncited, m.created_at, citations.get(m.id, [])) for m in messages]
     return ConversationDetail(conversation, views)
 
 
