@@ -12,6 +12,8 @@ export default defineConfig({
     alias: { '@': path.resolve(import.meta.dirname, './src') },
   },
   server: {
+    // Com a pasta montada do Windows no Docker, o Vite não recebe eventos de arquivo alterado.
+    watch: { usePolling: process.env.VITE_USE_POLLING === 'true' },
     proxy: {
       // Back-end não tem prefixo /api (plano, seção 11): /api/health -> /health.
       '/api': {
