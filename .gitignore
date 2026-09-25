@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Node
+node_modules/
+dist/
+
+# Segredos
+.env
+.env.*
+!.env.example
+
+# Cache do Hugging Face e dados locais
+.cache/
+hf-cache/
+huggingface/
+data/
+
+# Ferramentas locais
+.codegraph/
+.vscode/
+.idea/
+.DS_Store
