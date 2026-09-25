@@ -10,7 +10,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.chat.history import load_messages, prepare_history
-from app.chat.markers import normalize_brackets, parse_markers
+from app.chat.markers import normalize_brackets, parse_markers, strip_citation_suffixes
 from app.chat.prompt import build_answer_messages
 from app.chat.rewrite import rewrite_question
 from app.chat.title import fallback_title, generate_title
@@ -109,7 +109,7 @@ async def _answer_events(
             yield Event("token", {"text": piece})
 
     # 6. Citações: uma por marcador válido, com cópia do trecho e do nome do arquivo (CA07, CA16).
-    text = "".join(pieces)
+    text = strip_citation_suffixes("".join(pieces))
     markers = parse_markers(text, len(sources))
     answer = await asyncio.to_thread(_save_answer, session, conversation_id, text, [(m, sources[m - 1]) for m in markers])
     yield Event("done", {"message_id": answer.id, "markers": markers})

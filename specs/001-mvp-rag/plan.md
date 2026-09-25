@@ -17,6 +17,7 @@ Este plano descreve **como** atender a Spec 001. Cada decisão importante aponta
 | v7 | O `gpt-oss` cita com colchetes largos (`【1】`): a resposta é normalizada para `[n]` durante o streaming, antes do parser, do front e do banco; o prompt pede colchetes simples |
 | v8 | O front consulta a lista `GET /documents` a cada 2 s enquanto houver documentos `pending` ou `processing`, em vez de um `GET /documents/{id}` por documento |
 | v9 | Layout: barra lateral recolhível só com navegação e conversas; documentos numa página própria (`/documentos`), para nomes longos e a lista de conversas terem espaço |
+| v10 | O `gpt-oss` também cita como `[2†L20-L23]`: o sufixo `†…` é removido do texto completo antes do parser e do banco, e o front o ignora durante o streaming |
 
 ## 1. Arquitetura
 
@@ -179,7 +180,7 @@ O operador `<=>` do pgvector devolve **distância** de cosseno. A similaridade u
 
 ### 6.4 Extração de marcadores
 
-O parser reconhece `[1]`, listas como `[1, 3]` e intervalos como `[1-3]` e `[1–3]`. Antes dele, colchetes largos que alguns modelos usam (`【1】`, `［1］`) são convertidos para `[ ]` em cada pedaço do streaming, então o front, o banco e o parser só veem o formato `[n]`. Números fora do intervalo de trechos enviados no prompt (por exemplo, `[9]` quando só havia 6 trechos) são ignorados. Uma resposta sem nenhum marcador válido é salva normalmente, sem citações.
+O parser reconhece `[1]`, listas como `[1, 3]` e intervalos como `[1-3]` e `[1–3]`. Antes dele, colchetes largos que alguns modelos usam (`【1】`, `［1］`) são convertidos para `[ ]` em cada pedaço do streaming, então o front, o banco e o parser só veem o formato `[n]`. O sufixo de linha que o `gpt-oss` às vezes anexa (`[2†L20-L23]`) pode vir partido entre pedaços, então é removido do texto completo antes do parser e do banco, e o front o ignora durante o streaming. Números fora do intervalo de trechos enviados no prompt (por exemplo, `[9]` quando só havia 6 trechos) são ignorados. Uma resposta sem nenhum marcador válido é salva normalmente, sem citações.
 
 ### 6.5 Eventos SSE
 

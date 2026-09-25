@@ -18,7 +18,8 @@ function expand(group: string, upper: number): number[] {
  */
 export function linkMarkers(text: string, markers: Set<number>): string {
   const upper = Math.max(0, ...markers)
-  return text.replace(MARKER, (whole, group: string) => {
+  // Durante o streaming o texto ainda pode trazer [2†L20-L23]; o back-end limpa ao salvar (plano v10).
+  return text.replace(/†[^[\]]*(?=\])/g, '').replace(MARKER, (whole, group: string) => {
     const valid = expand(group, upper).filter((n) => markers.has(n))
     return valid.length ? valid.map((n) => `[${n}](${CITE_PREFIX}${n})`).join('') : whole
   })

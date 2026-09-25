@@ -24,6 +24,15 @@ def test_numbers_outside_sent_sources_are_ignored():
     assert parse_markers("Fora [9], zero [0], parcial [5-8], enorme [1-999999999].", num_sources=6) == [5, 6, 1, 2, 3, 4]
 
 
+def test_dagger_line_suffixes_are_stripped():
+    from app.chat.markers import strip_citation_suffixes
+
+    text = strip_citation_suffixes("Entre 2,7 e 5,0 mg/dL [2†L20-L23][3†L14-L18].")
+
+    assert text == "Entre 2,7 e 5,0 mg/dL [2][3]."
+    assert parse_markers(text, num_sources=3) == [2, 3]
+
+
 def test_wide_brackets_from_gpt_oss_are_normalized():
     from app.chat.markers import normalize_brackets
 

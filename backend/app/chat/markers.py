@@ -14,6 +14,16 @@ def normalize_brackets(text: str) -> str:
     return text.translate(_WIDE_BRACKETS)
 
 
+# O gpt-oss às vezes anexa a linha de origem: [2†L20-L23]. Pode vir partido entre pedaços do streaming,
+# então é removido no texto completo (plano v10).
+_DAGGER_SUFFIX = re.compile(r"†[^\[\]]*(?=\])")
+
+
+def strip_citation_suffixes(text: str) -> str:
+    """[2†L20-L23] -> [2]."""
+    return _DAGGER_SUFFIX.sub("", text)
+
+
 def expand_marker(group: str, upper: int) -> list[int]:
     """"1, 3-5" -> [1, 3, 4, 5], sem passar de `upper`. Intervalos invertidos são ignorados."""
     numbers: list[int] = []

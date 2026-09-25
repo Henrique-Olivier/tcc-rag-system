@@ -51,6 +51,14 @@ Medido em 25/09/2026 com `test/eval_retrieval.py`: as 16 perguntas de `test/ques
 **Decisões:**
 
 - **`MIN_SIMILARITY` = 0,5.** Não barra nenhuma pergunta válida e deixa 0,08 de margem para perguntas reais, mais vagas que as simuladas. Subir até 0,56 barraria a Q12, mas com só 0,02 de margem para o acerto mais fraco (prioridade ao CA09, seção 6.3). Como a Q13 fica acima de acertos válidos, nenhum limiar separa as perguntas sem resposta: o CA08 depende, na prática, da instrução do prompt (seção 6.2), verificada nas respostas (parte 2).
+**Respostas (parte 2):** `test/eval_answers.py` rodou as 16 perguntas e as 2 sequências contra o Groq real; o relatório completo, para marcar os CAs à mão, está em `test/answers-2026-09-25.md`. Resumo da revisão:
+
+- **Tempo:** todas entre 1,7 e 3,8 s, sem bater no limite do Groq com 65 s entre perguntas.
+- **CA06/CA08:** a armadilha de espécie (Q10, F02.3) diz explicitamente que o estudo é em cães; as perguntas sem resposta (Q12, Q13) respondem que não há informação, sem inventar. Onde a busca errou (Q01, Q14, F01.1) o modelo também não inventa: diz que os trechos não bastam.
+- **CA09 e CA11:** respostas em português com os números certos dos artigos em inglês; as reescritas das sequências (F01, F02) ficaram corretas.
+- **CA07:** 12 respostas citaram o documento e a página esperados. A F01.3 revelou um formato de citação do `gpt-oss` que o parser não reconhecia (`[2†L20-L23]`), e a resposta ficou sem citações: corrigido na revisão v10 do plano.
+- **Exaustividade:** a Q09 (prevalência em 4 artigos) trouxe 2 fontes; limitação da busca com `TOP_K=8`, candidata à próxima spec.
+
 - **`TOP_K` = 8, mantido.** Com 10 a busca ganharia a Q14, mas cada pergunta passaria de ~7 mil tokens, acima do limite de 8 mil tokens por minuto do Groq quando há histórico (seção 6.7).
 
 ## Latência (T27)

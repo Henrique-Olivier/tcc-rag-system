@@ -126,3 +126,14 @@ def test_wide_bracket_citations_are_saved_as_plain_markers(client, db_session, l
     assert "".join(data["text"] for name, data in events if name == "token") == "Dose de 0,3 mg/kg[1]."
     assert events[-1][1]["markers"] == [1]
     assert db_session.scalars(select(Citation)).one().marker == 1
+
+
+def test_dagger_citations_are_saved_as_plain_markers(client, db_session, llm, indexed):
+    llm.response = "Faixa de 2,7 a 5,0 mg/dL[1†L20-L23]."
+    conversation_id = client.post("/conversations").json()["id"]
+
+    events = _events(_ask(client, conversation_id, "Qual a faixa?"))
+
+    assert events[-1][1]["markers"] == [1]
+    answer = db_session.scalars(select(Message).where(Message.role == "assistant")).one()
+    assert answer.content == "Faixa de 2,7 a 5,0 mg/dL[1]."

@@ -132,7 +132,7 @@ questions:
     expected: []
     key_facts:
       - Nenhum documento trata de transplante renal em gatos.
-      - Atenção: D4 menciona transplante renal em humanos; a resposta não deve usar isso.
+      - "Atenção: D4 menciona transplante renal em humanos; a resposta não deve usar isso."
     cas: [CA06, CA08]
 
   - id: Q14
@@ -173,10 +173,10 @@ follow_ups:
         expected: [{doc: D2, pages: [3]}]
       - question: E qual o alvo de fósforo no estágio IV?
         expected: [{doc: D2, pages: [5]}]
-        key_facts: [Manter o fósforo abaixo de 6,0 mg/dL.]
+        key_facts: ["Manter o fósforo abaixo de 6,0 mg/dL."]
       - question: E no estágio III?
         expected: [{doc: D3, pages: [7]}]
-        key_facts: [Faixa-alvo de 2,7 a 5,0 mg/dL, segundo D3.]
+        key_facts: ["Faixa-alvo de 2,7 a 5,0 mg/dL, segundo D3."]
         notes: A reescrita deve produzir algo como "alvo de fósforo no estágio III da DRC em gatos".
     cas: [CA11, CA09]
 
@@ -188,7 +188,7 @@ follow_ups:
         expected: [{doc: D4, pages: [5, 8]}]
       - question: Isso vale para gatos?
         expected: []
-        key_facts: [Deve dizer que o estudo foi feito em cães e que os documentos não trazem dados de anlodipina e SDMA em gatos.]
+        key_facts: ["Deve dizer que o estudo foi feito em cães e que os documentos não trazem dados de anlodipina e SDMA em gatos."]
         notes: Testa CA11 junto com CA06/CA08. A resposta não deve extrapolar para gatos.
     cas: [CA11, CA06, CA08]
 

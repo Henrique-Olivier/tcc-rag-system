@@ -8,4 +8,5 @@ assert.equal(linkMarkers('Estudos [1, 3] e [2–3].', valid), 'Estudos [1](#cite
 assert.equal(linkMarkers('Fora [9] fica texto.', valid), 'Fora [9] fica texto.')
 assert.equal(linkMarkers('Link [1](https://x.org) intacto.', valid), 'Link [1](https://x.org) intacto.')
 assert.equal(linkMarkers('Enorme [1-999999999].', valid), 'Enorme [1](#cite-1)[2](#cite-2)[3](#cite-3).')
+assert.equal(linkMarkers('Faixa [2†L20-L23][3†L14].', valid), 'Faixa [2](#cite-2)[3](#cite-3).')
 console.log('citations ok')
