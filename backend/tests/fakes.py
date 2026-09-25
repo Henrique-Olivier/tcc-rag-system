@@ -1,5 +1,6 @@
 """Dublês compartilhados pelos testes."""
 
+import json
 import re
 
 
@@ -26,3 +27,15 @@ class FakeEmbedder:
         if self.fail_on and any(self.fail_on in t for t in texts):
             raise RuntimeError("falha simulada")
         return [self.vector for _ in texts]
+
+
+def sse_events(response) -> list[tuple[str, dict]]:
+    events = []
+    for block in response.text.strip().split("\n\n"):
+        name, data = block.split("\n", 1)
+        events.append((name.removeprefix("event: "), json.loads(data.removeprefix("data: "))))
+    return events
+
+
+def ask(client, conversation_id: int, question: str):
+    return client.post(f"/conversations/{conversation_id}/messages", json={"content": question})

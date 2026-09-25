@@ -1,5 +1,3 @@
-import json
-
 import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -8,21 +6,11 @@ from app.chat.answer import NOT_FOUND_ANSWER
 from app.core.deps import get_llm
 from app.db.models import Chunk, Citation, Document, Message
 from app.llm.fake import FakeLLMProvider
+from tests.fakes import ask as _ask
+from tests.fakes import sse_events as _events
 from tests.fakes import unit_vector
 
 pytestmark = pytest.mark.integration
-
-
-def _events(response) -> list[tuple[str, dict]]:
-    events = []
-    for block in response.text.strip().split("\n\n"):
-        name, data = block.split("\n", 1)
-        events.append((name.removeprefix("event: "), json.loads(data.removeprefix("data: "))))
-    return events
-
-
-def _ask(client, conversation_id: int, question: str):
-    return client.post(f"/conversations/{conversation_id}/messages", json={"content": question})
 
 
 @pytest.fixture

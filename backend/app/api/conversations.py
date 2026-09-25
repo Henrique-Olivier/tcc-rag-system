@@ -1,9 +1,10 @@
 import json
 from collections.abc import AsyncIterator
+from contextlib import aclosing
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
@@ -104,6 +105,7 @@ class QuestionIn(BaseModel):
 async def send_message(
     conversation_id: int,
     question: QuestionIn,
+    request: Request,
     session: SessionDep,
     sessions: Annotated[sessionmaker[Session], Depends(get_session_factory)],
     settings: Annotated[Settings, Depends(get_settings)],
@@ -123,8 +125,12 @@ async def send_message(
 
     async def stream() -> AsyncIterator[str]:
         with sessions() as stream_session:
-            async for event in answer_question(stream_session, llm, loader.embedder, config, conversation_id, question.content):
-                yield _sse(event)
+            events = answer_question(stream_session, llm, loader.embedder, config, conversation_id, question.content)
+            async with aclosing(events):
+                async for event in events:
+                    if await request.is_disconnected():
+                        break  # aclosing encerra a geração e grava a resposta como `error` (seção 6.6)
+                    yield _sse(event)
 
     return StreamingResponse(stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
 
