@@ -45,7 +45,8 @@ class Event:
 
 def _source_payload(number: int, source: RetrievedChunk) -> dict[str, Any]:
     return {"marker": number, "chunk_id": source.chunk_id, "document_id": source.document_id,
-            "filename": source.filename, "page_number": source.page_number, "excerpt": source.content}
+            "filename": source.filename, "page_number": source.page_number, "excerpt": source.content,
+            "similarity": round(source.similarity, 4)}
 
 
 async def answer_question(

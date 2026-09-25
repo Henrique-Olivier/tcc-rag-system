@@ -17,6 +17,8 @@ export type Source = {
   page_number: number
   excerpt: string
   document_removed?: boolean
+  /** Só nos trechos do evento `sources`; usado pelo script de avaliação. */
+  similarity?: number
 }
 
 /** Chamado ao carregar o front: é o "fechar o sistema" do CA13 (plano, seção 7). */
