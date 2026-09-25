@@ -18,7 +18,7 @@ Regras:
 - Se durante a implementação uma decisão do plano se mostrar errada, proponha a mudança no `plan.md` (com uma linha nova no histórico de revisões) antes de mudar o código.
 - Cada tarefa só é considerada pronta quando os testes dos CAs que ela cobre passam.
 
-Estado atual: `specs/001-mvp-rag/spec.md` e `plan.md` (v3, revisado duas vezes) estão aprovados. O `tasks.md` ainda não existe.
+Estado atual: `specs/001-mvp-rag/spec.md` e `plan.md` (v3, revisado duas vezes) estão aprovados. O `tasks.md` existe (T00 a T27); o scaffolding (T00) está feito e a implementação começa pela T01.
 
 ## Decisões principais (detalhes no plan.md)
 
