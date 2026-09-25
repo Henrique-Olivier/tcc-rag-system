@@ -36,4 +36,6 @@ testpaths = ["tests"]
 pythonpath = ["."]
 markers = [
     "integration: roda contra o Postgres do Compose (banco rag_test)",
+    "slow: carrega o bge-m3 real (~2,3 GB no primeiro uso); rode com -m slow",
 ]
+addopts = "-m 'not slow'"
