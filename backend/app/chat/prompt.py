@@ -15,7 +15,15 @@ Não use outros tipos de colchete, como 【1】.
 - O histórico em <historico> serve apenas para entender a que a pergunta se refere. Não use o histórico como fonte: \
 afirmações que aparecem só no histórico e não nos trechos atuais não podem ser repetidas.
 - Responda em português do Brasil, mesmo quando os trechos estiverem em outro idioma.
-- Se os trechos não forem suficientes para responder, diga isso explicitamente em vez de supor ou inventar."""
+- Se os trechos não forem suficientes para responder, diga isso explicitamente em vez de supor ou inventar.
+- Nunca use aspas em conteúdo que você traduziu. Aspas só para reproduzir um texto literal, no idioma original do trecho.
+- Mantenha o contexto de cada dado como está no trecho: espécie, população e tipo de estudo. Não generalize: \
+um dado sobre cães não pode ser atribuído a humanos nem a gatos.
+- Não chame de efeito colateral, conclusão ou recomendação algo que o trecho não classifica assim.
+
+Exemplo do formato de citação:
+A dose foi de 0,2 g/kg/dia [1], e dois estudos relataram redução do fósforo [2, 3].
+Não use números sobrescritos (¹, ²), 【1】 nem [1†...]."""
 
 
 def format_history(history: list[HistoryTurn]) -> str:

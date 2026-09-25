@@ -36,3 +36,16 @@ def test_no_history_means_no_section():
     _, user = build_answer_messages("Pergunta", SOURCES, history=[])
 
     assert "<historico>" not in user["content"]
+
+
+def test_instructions_carry_context_rules_and_a_parseable_example():
+    import re
+
+    from app.chat.markers import parse_markers
+    from app.chat.prompt import ANSWER_INSTRUCTIONS
+
+    assert "aspas" in ANSWER_INSTRUCTIONS and "idioma original" in ANSWER_INSTRUCTIONS
+    assert "espécie" in ANSWER_INSTRUCTIONS and "cães" in ANSWER_INSTRUCTIONS
+    assert "efeito colateral, conclusão ou recomendação" in ANSWER_INSTRUCTIONS
+    example = re.search(r"Exemplo do formato de citação:\n(.+)\n", ANSWER_INSTRUCTIONS).group(1)
+    assert parse_markers(example, num_sources=3) == [1, 2, 3]
