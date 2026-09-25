@@ -27,7 +27,7 @@ export const createConversation = () => request<Conversation>('/conversations', 
 type StreamHandlers = {
   onSources: (sources: Source[]) => void
   onToken: (text: string) => void
-  onDone: (markers: number[]) => void
+  onDone: (markers: number[], uncited: boolean) => void
   onError: (message: string) => void
 }
 
@@ -49,7 +49,7 @@ export function streamAnswer(conversationId: number, question: string, handlers:
       const data = JSON.parse(event.data)
       if (event.event === 'sources') handlers.onSources(data.sources)
       else if (event.event === 'token') handlers.onToken(data.text)
-      else if (event.event === 'done') handlers.onDone(data.markers)
+      else if (event.event === 'done') handlers.onDone(data.markers, data.uncited)
       else if (event.event === 'error') handlers.onError(data.message)
     },
     onerror(error) {
@@ -63,6 +63,7 @@ export type SavedMessage = {
   role: 'user' | 'assistant'
   content: string
   status: 'complete' | 'error'
+  uncited: boolean
   created_at: string
   citations: Source[]
 }

@@ -32,6 +32,7 @@ export default function ConversationPage() {
               role={message.role}
               content={message.content}
               status={message.status}
+              uncited={message.uncited}
               sources={message.citations}
               onCite={setCited}
             />

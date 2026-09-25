@@ -96,7 +96,7 @@ async def _answer_events(
     if not sources:  # sem chamar a LLM; resposta salva e usada no histórico (CA08)
         answer = await asyncio.to_thread(_save_message, session, conversation_id, "assistant", NOT_FOUND_ANSWER)
         yield Event("token", {"text": NOT_FOUND_ANSWER})
-        yield Event("done", {"message_id": answer.id, "markers": []})
+        yield Event("done", {"message_id": answer.id, "markers": [], "uncited": False})
         return
 
     # 4 e 5. Prompt e geração em streaming.
@@ -111,8 +111,11 @@ async def _answer_events(
     # 6. Citações: uma por marcador válido, com cópia do trecho e do nome do arquivo (CA07, CA16).
     text = strip_citation_suffixes("".join(pieces))
     markers = parse_markers(text, len(sources))
-    answer = await asyncio.to_thread(_save_answer, session, conversation_id, text, [(m, sources[m - 1]) for m in markers])
-    yield Event("done", {"message_id": answer.id, "markers": markers})
+    # Conteúdo sem nenhum marcador válido: salva, mas a interface avisa (seção 6.4).
+    uncited = bool(text.strip()) and not markers
+    cited = [(m, sources[m - 1]) for m in markers]
+    answer = await asyncio.to_thread(_save_answer, session, conversation_id, text, cited, uncited)
+    yield Event("done", {"message_id": answer.id, "markers": markers, "uncited": uncited})
 
 
 def _save_message(session: Session, conversation_id: int, role: str, content: str) -> Message:
@@ -143,8 +146,10 @@ def _record_error(session: Session, conversation_id: int) -> None:
         own.commit()
 
 
-def _save_answer(session: Session, conversation_id: int, content: str, cited: list[tuple[int, RetrievedChunk]]) -> Message:
-    message = Message(conversation_id=conversation_id, role="assistant", content=content)
+def _save_answer(
+    session: Session, conversation_id: int, content: str, cited: list[tuple[int, RetrievedChunk]], uncited: bool
+) -> Message:
+    message = Message(conversation_id=conversation_id, role="assistant", content=content, uncited=uncited)
     session.add(message)
     session.flush()
     session.add_all(

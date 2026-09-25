@@ -9,6 +9,7 @@ export type ChatMessage = {
   content: string
   status: 'streaming' | 'complete' | 'error'
   sources: Source[]
+  uncited?: boolean
   error?: string
 }
 
@@ -69,7 +70,7 @@ export function CurrentConversationProvider({ children }: { children: ReactNode 
         await streamAnswer(id, question, {
           onSources: (sources) => updateAnswer((m) => ({ ...m, sources })),
           onToken: (text) => updateAnswer((m) => ({ ...m, content: m.content + text })),
-          onDone: () => updateAnswer((m) => ({ ...m, status: 'complete' })),
+          onDone: (_, uncited) => updateAnswer((m) => ({ ...m, status: 'complete', uncited })),
           onError: (error) => updateAnswer((m) => ({ ...m, status: 'error', content: '', error })),
         })
         return 'sent'

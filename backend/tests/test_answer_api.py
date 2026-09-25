@@ -53,6 +53,7 @@ def test_answer_streams_events_in_order_and_saves_citations(client, db_session, 
     assert (source["marker"], source["filename"], source["page_number"]) == (1, "gatos.pdf", 5)
     assert "".join(data["text"] for name, data in events if name == "token") == llm.response
     assert events[-1][1]["markers"] == [1]
+    assert events[-1][1]["uncited"] is False
 
     question, answer = db_session.scalars(select(Message).order_by(Message.id)).all()
     assert (question.role, answer.role, answer.content, answer.status) == ("user", "assistant", llm.response, "complete")
@@ -137,3 +138,25 @@ def test_dagger_citations_are_saved_as_plain_markers(client, db_session, llm, in
     assert events[-1][1]["markers"] == [1]
     answer = db_session.scalars(select(Message).where(Message.role == "assistant")).one()
     assert answer.content == "Faixa de 2,7 a 5,0 mg/dL[1]."
+
+
+def test_answer_without_valid_marker_is_flagged_uncited(client, db_session, llm, indexed):
+    llm.response = "O meloxicam é seguro em gatos, mas ver [9]."
+    conversation_id = client.post("/conversations").json()["id"]
+
+    events = _events(_ask(client, conversation_id, "É seguro?"))
+
+    assert events[-1][1] == {"message_id": events[-1][1]["message_id"], "markers": [], "uncited": True}
+    answer = db_session.scalars(select(Message).where(Message.role == "assistant")).one()
+    assert answer.uncited is True
+    detail = client.get(f"/conversations/{conversation_id}").json()
+    assert detail["messages"][1]["uncited"] is True
+
+
+def test_not_found_answer_is_never_flagged(client, db_session):
+    conversation_id = client.post("/conversations").json()["id"]
+
+    events = _events(_ask(client, conversation_id, "Algo fora dos documentos?"))
+
+    assert events[-1][1]["uncited"] is False
+    assert db_session.scalars(select(Message).where(Message.role == "assistant")).one().uncited is False

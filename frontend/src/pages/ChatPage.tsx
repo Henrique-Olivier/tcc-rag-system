@@ -51,6 +51,7 @@ export default function ChatPage() {
               content={message.content}
               status={message.status}
               error={message.error}
+              uncited={message.uncited}
               sources={message.sources}
               onCite={setCited}
             />

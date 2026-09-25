@@ -8,12 +8,13 @@ type Props = {
   content: string
   status: 'streaming' | 'complete' | 'error'
   error?: string
+  uncited?: boolean
   sources: Source[]
   onCite: (source: Source) => void
 }
 
 /** Resposta renderizada como markdown (plano v5), com marcadores [n] clicáveis (seção 9). */
-export default function MessageBubble({ role, content, status, error, sources, onCite }: Props) {
+export default function MessageBubble({ role, content, status, error, uncited, sources, onCite }: Props) {
   if (role === 'user') {
     return (
       <div className="ml-auto max-w-[80%] rounded-2xl bg-primary px-4 py-2 text-sm whitespace-pre-wrap text-primary-foreground">
@@ -66,6 +67,11 @@ export default function MessageBubble({ role, content, status, error, sources, o
         </Markdown>
       ) : (
         <p className="text-muted-foreground">Pensando…</p>
+      )}
+      {uncited && (
+        <p className="border-t pt-2 text-xs text-amber-700 dark:text-amber-400">
+          Esta resposta não indicou de quais trechos veio. Confira as fontes antes de usar no TCC.
+        </p>
       )}
     </div>
   )
