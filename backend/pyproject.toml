@@ -34,3 +34,6 @@ explicit = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "integration: roda contra o Postgres do Compose (banco rag_test)",
+]
