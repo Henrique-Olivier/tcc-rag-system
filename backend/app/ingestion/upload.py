@@ -94,9 +94,17 @@ def _register_one(session: Session, file: UploadedFile, file_hash: str, data_dir
 
 
 def _write_atomically(path: Path, data: bytes) -> None:
-    """O worker nunca vê um PDF pela metade."""
+    """O worker nunca vê um PDF pela metade. O nome é o hash: mesmo nome = mesmo conteúdo."""
+    if path.exists():
+        return
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
     with os.fdopen(fd, "wb") as out:
         out.write(data)
-    os.replace(tmp, path)
+    try:
+        os.replace(tmp, path)
+    except OSError:
+        # No Windows, dois uploads simultâneos do mesmo arquivo disputam o rename.
+        os.unlink(tmp)
+        if not path.exists():
+            raise
