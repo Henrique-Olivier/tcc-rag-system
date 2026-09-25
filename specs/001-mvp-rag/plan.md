@@ -14,6 +14,7 @@ Este plano descreve **como** atender a Spec 001. Cada decisão importante aponta
 | v4 | React Router e shadcn/ui (Tailwind) no front-end; padrões provisórios de `HISTORY_TURNS` e `MIN_SIMILARITY`; variáveis `POSTGRES_*` do container do banco; proxy de `/api` remove o prefixo; porta do banco publicada em `127.0.0.1` para os testes de integração |
 | v5 | Respostas do chat renderizadas como markdown (`react-markdown`), com os marcadores [n] clicáveis |
 | v6 | Modelos Llama retirados do Groq: respostas com `openai/gpt-oss-120b` e reescrita/títulos com `openai/gpt-oss-20b`; orçamento de tokens recalculado com os limites reais do console |
+| v7 | O `gpt-oss` cita com colchetes largos (`【1】`): a resposta é normalizada para `[n]` durante o streaming, antes do parser, do front e do banco; o prompt pede colchetes simples |
 
 ## 1. Arquitetura
 
@@ -176,7 +177,7 @@ O operador `<=>` do pgvector devolve **distância** de cosseno. A similaridade u
 
 ### 6.4 Extração de marcadores
 
-O parser reconhece `[1]`, listas como `[1, 3]` e intervalos como `[1-3]` e `[1–3]`. Números fora do intervalo de trechos enviados no prompt (por exemplo, `[9]` quando só havia 6 trechos) são ignorados. Uma resposta sem nenhum marcador válido é salva normalmente, sem citações.
+O parser reconhece `[1]`, listas como `[1, 3]` e intervalos como `[1-3]` e `[1–3]`. Antes dele, colchetes largos que alguns modelos usam (`【1】`, `［1］`) são convertidos para `[ ]` em cada pedaço do streaming, então o front, o banco e o parser só veem o formato `[n]`. Números fora do intervalo de trechos enviados no prompt (por exemplo, `[9]` quando só havia 6 trechos) são ignorados. Uma resposta sem nenhum marcador válido é salva normalmente, sem citações.
 
 ### 6.5 Eventos SSE
 

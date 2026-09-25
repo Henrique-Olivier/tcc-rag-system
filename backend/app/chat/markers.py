@@ -5,6 +5,13 @@ import re
 _ITEM = r"\d+(?:\s*[-–]\s*\d+)?"
 MARKER_RE = re.compile(rf"\[\s*({_ITEM}(?:\s*,\s*{_ITEM})*)\s*\]")
 _RANGE_SEP = re.compile(r"\s*[-–]\s*")
+# O gpt-oss cita como 【1】; um caractere por colchete, então nunca fica partido entre pedaços do streaming.
+_WIDE_BRACKETS = str.maketrans({"【": "[", "】": "]", "［": "[", "］": "]"})
+
+
+def normalize_brackets(text: str) -> str:
+    """Colchetes largos viram [ ] para o parser, o front e o banco verem só [n] (plano v7)."""
+    return text.translate(_WIDE_BRACKETS)
 
 
 def expand_marker(group: str, upper: int) -> list[int]:

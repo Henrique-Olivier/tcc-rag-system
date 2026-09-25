@@ -126,3 +126,14 @@ def test_unknown_conversation_is_404_and_empty_question_422(client):
     assert _ask(client, 999, "Pergunta").status_code == 404
     conversation_id = client.post("/conversations").json()["id"]
     assert _ask(client, conversation_id, "").status_code == 422
+
+
+def test_wide_bracket_citations_are_saved_as_plain_markers(client, db_session, llm, indexed):
+    llm.response = "Dose de 0,3 mg/kg【1】."
+    conversation_id = client.post("/conversations").json()["id"]
+
+    events = _events(_ask(client, conversation_id, "Qual a dose?"))
+
+    assert "".join(data["text"] for name, data in events if name == "token") == "Dose de 0,3 mg/kg[1]."
+    assert events[-1][1]["markers"] == [1]
+    assert db_session.scalars(select(Citation)).one().marker == 1

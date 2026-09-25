@@ -8,7 +8,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.chat.history import load_messages, prepare_history
-from app.chat.markers import parse_markers
+from app.chat.markers import normalize_brackets, parse_markers
 from app.chat.prompt import build_answer_messages
 from app.chat.rewrite import rewrite_question
 from app.db.models import Citation, Message
@@ -64,7 +64,8 @@ async def answer_question(
 
     # 4 e 5. Prompt e geração em streaming.
     pieces: list[str] = []
-    async for piece in llm.stream(config.answer_model, build_answer_messages(question, sources, history)):
+    async for raw in llm.stream(config.answer_model, build_answer_messages(question, sources, history)):
+        piece = normalize_brackets(raw)
         pieces.append(piece)
         yield Event("token", {"text": piece})
 
