@@ -1,6 +1,6 @@
 # Tarefas 001 — MVP Assistente de pesquisa para TCC
 
-> Spec: `spec.md` · Plano: `plan.md` (v7) · Quadro: https://trello.com/b/kiVC5tnp/projeto-rag-tcc
+> Spec: `spec.md` · Plano: `plan.md` (v8) · Quadro: https://trello.com/b/kiVC5tnp/projeto-rag-tcc
 
 Tarefas pequenas, em ordem de dependência. Cada uma aponta os CAs que atende e as seções do plano que a descrevem. Uma tarefa só está pronta quando os testes indicados em "Pronto quando" passam.
 
@@ -219,7 +219,7 @@ Barra lateral com as seções Documentos e Conversas e área principal do chat. 
 
 ### T22 — Seção Documentos
 
-Upload por arrastar ou selecionar vários arquivos, resultado por arquivo (novo, duplicado, reativado, reprocessado, recusado), polling de `GET /documents/{id}` a cada 2 s até `ready` ou `failed`, posição na fila ("aguardando, 3º na fila"), mensagem de erro dos `failed`, botão de remover e aviso de worker parado a partir do `/health`.
+Upload por arrastar ou selecionar vários arquivos, resultado por arquivo (novo, duplicado, reativado, reprocessado, recusado), polling de `GET /documents` a cada 2 s enquanto houver documentos `pending` ou `processing` (plano v8), posição na fila ("aguardando, 3º na fila"), mensagem de erro dos `failed`, botão de remover e aviso de worker parado a partir do `/health`.
 
 - **CAs:** 01, 02, 03, 04, 05, 17
 - **Plano:** 5.5, 9

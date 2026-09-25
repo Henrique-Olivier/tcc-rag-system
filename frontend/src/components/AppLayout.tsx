@@ -1,4 +1,5 @@
 import { Outlet } from 'react-router'
+import DocumentsSection from '@/components/DocumentsSection'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 
@@ -13,6 +14,7 @@ export default function AppLayout() {
         <ScrollArea className="min-h-0 flex-1">
           <section className="p-4">
             <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Documentos</h2>
+            <DocumentsSection />
           </section>
           <Separator />
           <section className="p-4">

@@ -15,6 +15,7 @@ Este plano descreve **como** atender a Spec 001. Cada decisão importante aponta
 | v5 | Respostas do chat renderizadas como markdown (`react-markdown`), com os marcadores [n] clicáveis |
 | v6 | Modelos Llama retirados do Groq: respostas com `openai/gpt-oss-120b` e reescrita/títulos com `openai/gpt-oss-20b`; orçamento de tokens recalculado com os limites reais do console |
 | v7 | O `gpt-oss` cita com colchetes largos (`【1】`): a resposta é normalizada para `[n]` durante o streaming, antes do parser, do front e do banco; o prompt pede colchetes simples |
+| v8 | O front consulta a lista `GET /documents` a cada 2 s enquanto houver documentos `pending` ou `processing`, em vez de um `GET /documents/{id}` por documento |
 
 ## 1. Arquitetura
 
@@ -243,7 +244,7 @@ O contrato detalhado, com os schemas de entrada e saída, fica definido nos mode
 
 A tela tem uma barra lateral com duas seções, **Documentos** e **Conversas**, e a área principal com o chat.
 
-Na seção de documentos, o componente de upload aceita arrastar vários arquivos e mostra o resultado e o status de cada um, consultando `GET /documents/{id}` a cada 2 segundos até o documento ficar `ready` ou `failed` (CA02, CA03). Documentos na fila mostram a posição ("aguardando, 3º na fila"), já que a indexação pode demorar. Se o `/health` indicar o worker parado, a seção mostra o aviso da seção 5.5. Cada item da lista tem a opção de remover.
+Na seção de documentos, o componente de upload aceita arrastar vários arquivos e mostra o resultado e o status de cada um, consultando `GET /documents` a cada 2 segundos enquanto algum documento estiver `pending` ou `processing` (CA02, CA03). Uma consulta à lista traz o status e a posição de todos, em vez de uma requisição por documento. Documentos na fila mostram a posição ("aguardando, 3º na fila"), já que a indexação pode demorar. Se o `/health` indicar o worker parado, a seção mostra o aviso da seção 5.5. Cada item da lista tem a opção de remover.
 
 No chat, a resposta aparece sendo escrita conforme os eventos `token` chegam. Os marcadores [n] viram elementos clicáveis que abrem um painel com o trecho original, o arquivo e a página, e um botão que abre o PDF naquela página no visualizador (CA07). O 409 de conversa encerrada é tratado como descrito na seção 7.
 
