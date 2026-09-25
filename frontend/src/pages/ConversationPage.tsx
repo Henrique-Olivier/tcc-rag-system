@@ -4,6 +4,7 @@ import { useParams } from 'react-router'
 import { conversationTitle, formatDate, getConversation, type Source } from '@/api/conversations'
 import CitationPanel from '@/components/CitationPanel'
 import MessageBubble from '@/components/MessageBubble'
+import PageHeader from '@/components/PageHeader'
 import { Badge } from '@/components/ui/badge'
 
 /** Conversa salva, somente leitura: sem campo de pergunta (plano, seção 9). */
@@ -14,13 +15,13 @@ export default function ConversationPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex items-center justify-between gap-2 border-b px-4 py-2">
+      <PageHeader>
         <div className="min-w-0">
           <h2 className="truncate text-sm font-medium">{conversation.data ? conversationTitle(conversation.data) : 'Conversa'}</h2>
           {conversation.data && <p className="text-xs text-muted-foreground">{formatDate(conversation.data.created_at)}</p>}
         </div>
         <Badge variant="secondary">Somente leitura</Badge>
-      </header>
+      </PageHeader>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto flex max-w-3xl flex-col gap-4 p-4">
           {conversation.isPending && <p className="text-sm text-muted-foreground">Carregando…</p>}

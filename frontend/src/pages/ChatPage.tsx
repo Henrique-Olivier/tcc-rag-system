@@ -1,8 +1,9 @@
-import { SendHorizontal, SquarePen } from 'lucide-react'
+import { SendHorizontal } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import type { Source } from '@/api/conversations'
 import CitationPanel from '@/components/CitationPanel'
 import MessageBubble from '@/components/MessageBubble'
+import PageHeader from '@/components/PageHeader'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -32,12 +33,9 @@ export default function ChatPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex items-center justify-between border-b px-4 py-2">
-        <h2 className="text-sm font-medium">Nova pergunta</h2>
-        <Button size="sm" variant="ghost" onClick={newConversation} disabled={sending}>
-          <SquarePen /> Nova conversa
-        </Button>
-      </header>
+      <PageHeader>
+        <h2 className="text-sm font-medium">Conversa atual</h2>
+      </PageHeader>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto flex max-w-3xl flex-col gap-4 p-4">

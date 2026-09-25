@@ -1,6 +1,6 @@
 # Tarefas 001 — MVP Assistente de pesquisa para TCC
 
-> Spec: `spec.md` · Plano: `plan.md` (v8) · Quadro: https://trello.com/b/kiVC5tnp/projeto-rag-tcc
+> Spec: `spec.md` · Plano: `plan.md` (v9) · Quadro: https://trello.com/b/kiVC5tnp/projeto-rag-tcc
 
 Tarefas pequenas, em ordem de dependência. Cada uma aponta os CAs que atende e as seções do plano que a descrevem. Uma tarefa só está pronta quando os testes indicados em "Pronto quando" passam.
 
