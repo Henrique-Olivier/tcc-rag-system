@@ -74,3 +74,19 @@ def db_session(engine: Engine):
     tables = ", ".join(t.name for t in Base.metadata.sorted_tables)
     with engine.begin() as conn:
         conn.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))
+
+
+@pytest.fixture
+def client(db_session, tmp_path):
+    """API com a sessão de teste e configurações próprias (PDFs em tmp_path, limite de 1 MB)."""
+    from fastapi.testclient import TestClient
+
+    from app.api.main import app
+    from app.core.config import Settings, get_settings
+    from app.core.deps import get_session
+
+    settings = Settings(_env_file=None, groq_api_key="x", database_url="não usado", data_dir=tmp_path / "pdfs", max_upload_mb=1)
+    app.dependency_overrides[get_session] = lambda: db_session
+    app.dependency_overrides[get_settings] = lambda: settings
+    yield TestClient(app)
+    app.dependency_overrides.clear()
