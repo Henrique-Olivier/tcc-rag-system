@@ -1,18 +1,28 @@
+import json
+from collections.abc import AsyncIterator
 from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict
-from sqlalchemy.orm import Session
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy.orm import Session, sessionmaker
 
+from app.chat.answer import AnswerConfig, Event, answer_question
 from app.chat.conversations import (
+    ConversationState,
     close_open,
+    conversation_state,
     create_conversation,
     delete_conversation,
     get_detail,
     list_conversations,
 )
-from app.core.deps import get_session
+from app.core.config import Settings, get_settings
+from app.core.deps import get_embedder_loader, get_llm, get_session, get_session_factory
+from app.embeddings.model import EmbedderLoader
+from app.llm.provider import LLMProvider
 
 router = APIRouter(prefix="/conversations", tags=["conversas"])
 
@@ -83,3 +93,41 @@ def get_one(conversation_id: int, session: SessionDep):
 def delete(conversation_id: int, session: SessionDep):
     if not delete_conversation(session, conversation_id):
         raise HTTPException(404, "conversa não encontrada")
+
+
+class QuestionIn(BaseModel):
+    # Limite para a pergunta não estourar o orçamento de tokens (seção 6.7).
+    content: str = Field(min_length=1, max_length=2000)
+
+
+@router.post("/{conversation_id}/messages")
+async def send_message(
+    conversation_id: int,
+    question: QuestionIn,
+    session: SessionDep,
+    sessions: Annotated[sessionmaker[Session], Depends(get_session_factory)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    loader: Annotated[EmbedderLoader, Depends(get_embedder_loader)],
+    llm: Annotated[LLMProvider, Depends(get_llm)],
+):
+    """Pergunta por POST, resposta por SSE (seção 6.5)."""
+    state = await run_in_threadpool(conversation_state, session, conversation_id)
+    if state is ConversationState.NOT_FOUND:
+        raise HTTPException(404, "conversa não encontrada")
+    if state is ConversationState.CLOSED:  # o front trata esse 409 especificamente (seção 7)
+        raise HTTPException(409, "esta conversa foi encerrada")
+    if loader.embedder is None:
+        raise HTTPException(503, "o modelo de busca ainda está carregando; tente de novo em instantes")
+    config = AnswerConfig(settings.llm_answer_model, settings.llm_rewrite_model, settings.top_k,
+                          settings.min_similarity, settings.history_turns)
+
+    async def stream() -> AsyncIterator[str]:
+        with sessions() as stream_session:
+            async for event in answer_question(stream_session, llm, loader.embedder, config, conversation_id, question.content):
+                yield _sse(event)
+
+    return StreamingResponse(stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
+
+
+def _sse(event: Event) -> str:
+    return f"event: {event.name}\ndata: {json.dumps(event.data, ensure_ascii=False)}\n\n"

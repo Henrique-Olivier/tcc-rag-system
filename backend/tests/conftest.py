@@ -80,11 +80,13 @@ def db_session(engine: Engine):
 def client(db_session, tmp_path):
     """API com a sessão de teste, configurações próprias (PDFs em tmp_path, limite de 1 MB) e embedding falso."""
     from fastapi.testclient import TestClient
+    from sqlalchemy.orm import sessionmaker
 
     from app.api.main import app
     from app.core.config import Settings, get_settings
-    from app.core.deps import get_embedder_loader, get_session
+    from app.core.deps import get_embedder_loader, get_llm, get_session, get_session_factory
     from app.embeddings.model import EmbedderLoader
+    from app.llm.fake import FakeLLMProvider
     from tests.fakes import FakeEmbedder
 
     settings = Settings(_env_file=None, groq_api_key="x", database_url="não usado", data_dir=tmp_path / "pdfs", max_upload_mb=1)
@@ -93,5 +95,9 @@ def client(db_session, tmp_path):
     loader = EmbedderLoader()
     loader.embedder = FakeEmbedder()
     app.dependency_overrides[get_embedder_loader] = lambda: loader
+    app.dependency_overrides[get_session_factory] = lambda: sessionmaker(db_session.get_bind(), expire_on_commit=False)
+    llm = FakeLLMProvider()
+    app.dependency_overrides[get_llm] = lambda: llm
+    app.state.test_llm = llm  # os testes trocam a resposta por aqui
     yield TestClient(app)
     app.dependency_overrides.clear()
