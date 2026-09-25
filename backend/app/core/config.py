@@ -1,5 +1,6 @@
 """Variáveis de ambiente do plano, seção 10. Sem padrão = obrigatória no .env."""
 
+from functools import lru_cache
 from pathlib import Path
 
 from pydantic import SecretStr
@@ -11,8 +12,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file="../.env", extra="ignore")
 
     groq_api_key: SecretStr
-    llm_answer_model: str = "llama-3.3-70b-versatile"
-    llm_rewrite_model: str = "llama-3.1-8b-instant"
+    llm_answer_model: str = "openai/gpt-oss-120b"
+    llm_rewrite_model: str = "openai/gpt-oss-20b"
     embedding_model: str = "BAAI/bge-m3"
     top_k: int = 8
     chunk_size: int = 500
@@ -28,5 +29,6 @@ class Settings(BaseSettings):
     data_dir: Path
 
 
+@lru_cache
 def get_settings() -> Settings:
     return Settings()

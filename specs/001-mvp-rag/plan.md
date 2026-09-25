@@ -13,6 +13,7 @@ Este plano descreve **como** atender a Spec 001. Cada decisão importante aponta
 | v3 | Limite de tentativas e captura de exceções no worker; serviço `migrate` e healthcheck do banco; heartbeat e reinício automático do worker; divisão de CPU por núcleos físicos; gravação protegida do erro após desconexão; tratamento do 409 com várias abas; instruções sobre o histórico no prompt; destino da resposta "não encontrei"; upload duplicado concorrente; posição na fila na API; limite de tamanho de upload; correções pontuais de texto |
 | v4 | React Router e shadcn/ui (Tailwind) no front-end; padrões provisórios de `HISTORY_TURNS` e `MIN_SIMILARITY`; variáveis `POSTGRES_*` do container do banco; proxy de `/api` remove o prefixo; porta do banco publicada em `127.0.0.1` para os testes de integração |
 | v5 | Respostas do chat renderizadas como markdown (`react-markdown`), com os marcadores [n] clicáveis |
+| v6 | Modelos Llama retirados do Groq: respostas com `openai/gpt-oss-120b` e reescrita/títulos com `openai/gpt-oss-20b`; orçamento de tokens recalculado com os limites reais do console |
 
 ## 1. Arquitetura
 
@@ -141,7 +142,7 @@ A pergunta chega por `POST /conversations/{id}/messages` e a resposta volta por 
 2. **Buscar.** A pergunta (reescrita ou original) é convertida em embedding e o banco busca os 8 trechos mais similares, considerando apenas documentos com status `ready` e sem `deleted_at` (CA05, CA09).
 3. **Filtrar por relevância.** Trechos com similaridade abaixo de `MIN_SIMILARITY` são descartados. Se nenhum sobrar, o sistema responde diretamente que não encontrou informação suficiente nos documentos, sem chamar a LLM (CA08). Essa resposta é salva como mensagem da assistente com status `complete` e sem citações, e entra no histórico normalmente, porque é um contexto útil e inofensivo para as perguntas seguintes.
 4. **Montar o prompt.** Instruções em português, os trechos restantes numerados a partir de [1] com arquivo e página, o histórico preparado numa seção claramente delimitada, e a pergunta. As instruções estão na seção 6.2.
-5. **Gerar.** A resposta do modelo principal é transmitida token a token. O modelo começa como `llama-3.3-70b-versatile`, e o `openai/gpt-oss-120b` será comparado nos testes para ver qual escreve melhor em português.
+5. **Gerar.** A resposta do modelo principal é transmitida token a token. O modelo é o `openai/gpt-oss-120b`; a qualidade do português dele é avaliada com o conjunto de avaliação (seção 12).
 6. **Salvar citações.** Ao final, o back-end extrai os marcadores da resposta (seção 6.4) e salva a mensagem da assistente com uma citação por marcador válido, copiando o trecho e o nome do arquivo (CA07, CA12).
 
 ### 6.1 Preparação do histórico
@@ -194,7 +195,7 @@ A pergunta da usuária já está salva antes da geração começar. Se o Groq de
 
 ### 6.7 Orçamento de tokens
 
-Cada pergunta consome cerca de 6 mil tokens no modelo principal (4 mil de trechos, 1,5 mil de histórico e 500 de instruções), mais uma chamada pequena ao modelo de reescrita quando há histórico. Com os limites do plano gratuito do Groq para o `llama-3.3-70b-versatile` (na ordem de 100 mil tokens por dia e 12 mil por minuto, a confirmar no console do Groq antes da implementação), isso dá cerca de **15 perguntas por dia e 2 por minuto**.
+Cada pergunta consome cerca de 6 mil tokens no modelo principal (4 mil de trechos, 1,5 mil de histórico e 500 de instruções), mais uma chamada pequena ao modelo de reescrita quando há histórico. Com os limites do plano gratuito do Groq para o `openai/gpt-oss-120b` (8 mil tokens por minuto e 200 mil por dia, conferidos no console em 25/09/2026; ver `measurements.md`), isso dá cerca de **33 perguntas por dia e 1 por minuto**. O limite por minuto é o mais apertado: duas perguntas seguidas em menos de um minuto podem esbarrar nele.
 
 Isso é pouco para um dia de escrita intensa. As mitigações são: ativar o tier Developer (segundo as fontes consultadas, limites cerca de 10 vezes maiores e custo baixo para o volume de uma usuária, ambos a confirmar no console do Groq); reduzir `TOP_K`, `CHUNK_SIZE` ou `HISTORY_TURNS`; e o próprio filtro de relevância, que tira trechos fracos do prompt. Quando o limite é atingido, o front mostra uma mensagem clara em vez de um erro genérico.
 
@@ -254,8 +255,8 @@ Variáveis do `.env`:
 | Variável | Uso |
 |---|---|
 | `GROQ_API_KEY` | Chave da API do Groq |
-| `LLM_ANSWER_MODEL` | Modelo que gera as respostas (padrão `llama-3.3-70b-versatile`) |
-| `LLM_REWRITE_MODEL` | Modelo que reescreve perguntas e gera títulos (padrão `llama-3.1-8b-instant`) |
+| `LLM_ANSWER_MODEL` | Modelo que gera as respostas (padrão `openai/gpt-oss-120b`) |
+| `LLM_REWRITE_MODEL` | Modelo que reescreve perguntas e gera títulos (padrão `openai/gpt-oss-20b`) |
 | `EMBEDDING_MODEL` | Modelo de embedding (padrão `BAAI/bge-m3`) |
 | `TOP_K` | Número de trechos recuperados por pergunta |
 | `CHUNK_SIZE` / `CHUNK_OVERLAP` | Tamanho e sobreposição dos trechos, em tokens |
@@ -326,7 +327,7 @@ Isso valida de forma automática os CAs 01 a 05, 10 e 12 a 17.
 
 | Risco | Mitigação |
 |---|---|
-| Limites do plano gratuito do Groq (~15 perguntas/dia no modelo principal) | Tier Developer, parâmetros configuráveis, mensagem clara ao atingir o limite |
+| Limites do plano gratuito do Groq (~33 perguntas/dia e ~1/min no modelo principal) | Tier Developer, parâmetros configuráveis, mensagem clara ao atingir o limite |
 | Indexação inicial de um volume grande leva horas | Fila persistente com posição visível; medição logo no início (seção 12) |
 | Arquivo que derruba o processo do worker | Limite de tentativas (5.2), limite de tamanho de upload (5.1), worker isolado da `api` |
 | Worker parado sem ninguém perceber | Heartbeat, aviso no front e `restart: unless-stopped` (5.5, 11) |

@@ -1,6 +1,6 @@
 # Tarefas 001 — MVP Assistente de pesquisa para TCC
 
-> Spec: `spec.md` · Plano: `plan.md` (v5) · Quadro: https://trello.com/b/kiVC5tnp/projeto-rag-tcc
+> Spec: `spec.md` · Plano: `plan.md` (v6) · Quadro: https://trello.com/b/kiVC5tnp/projeto-rag-tcc
 
 Tarefas pequenas, em ordem de dependência. Cada uma aponta os CAs que atende e as seções do plano que a descrevem. Uma tarefa só está pronta quando os testes indicados em "Pronto quando" passam.
 
@@ -257,7 +257,7 @@ Lista de conversas com data e título, abertura em modo somente leitura (sem cam
 
 ### T26 — Conjunto de avaliação e calibração
 
-Montar com ela 10 a 15 perguntas reais, cada uma com documento e página esperados, incluindo perguntas em português sobre artigos em inglês, perguntas sem resposta nos documentos e sequências de acompanhamento. Medir se a busca encontra os trechos certos, calibrar `MIN_SIMILARITY` (começando baixo) e `TOP_K`, e comparar `llama-3.3-70b-versatile` com `openai/gpt-oss-120b`. Validar manualmente os CAs que dependem da LLM real.
+Montar com ela 10 a 15 perguntas reais, cada uma com documento e página esperados, incluindo perguntas em português sobre artigos em inglês, perguntas sem resposta nos documentos e sequências de acompanhamento. Medir se a busca encontra os trechos certos, calibrar `MIN_SIMILARITY` (começando baixo) e `TOP_K`, e avaliar a qualidade do português do `openai/gpt-oss-120b`. Validar manualmente os CAs que dependem da LLM real.
 
 - **CAs:** 06, 07, 08, 09, 11
 - **Plano:** 6 (etapa 5), 6.2, 6.3, 12
