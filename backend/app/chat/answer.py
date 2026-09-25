@@ -13,7 +13,8 @@ from app.chat.history import load_messages, prepare_history
 from app.chat.markers import normalize_brackets, parse_markers
 from app.chat.prompt import build_answer_messages
 from app.chat.rewrite import rewrite_question
-from app.db.models import Citation, Message
+from app.chat.title import fallback_title, generate_title
+from app.db.models import Citation, Conversation, Message
 from app.llm.provider import LLMProvider, LLMRateLimitError
 from app.retrieval.search import RetrievedChunk, search
 
@@ -59,6 +60,7 @@ async def answer_question(
             async for event in events:
                 finished = finished or event.name == "done"
                 yield event
+        await _title_after_first_answer(session, llm, config.rewrite_model, conversation_id, question)
     except LLMRateLimitError:
         finished = True
         _record_error(session, conversation_id)
@@ -118,6 +120,17 @@ def _save_message(session: Session, conversation_id: int, role: str, content: st
     session.add(message)
     session.commit()
     return message
+
+
+async def _title_after_first_answer(session: Session, llm: LLMProvider, model: str, conversation_id: int, question: str) -> None:
+    """Depois da primeira resposta concluída (seção 6.8). O provisório garante um título mesmo se a geração cair."""
+    conversation = await asyncio.to_thread(session.get, Conversation, conversation_id)
+    if conversation.title is not None:
+        return
+    conversation.title = fallback_title(question)
+    await asyncio.to_thread(session.commit)
+    conversation.title = await generate_title(llm, model, question)
+    await asyncio.to_thread(session.commit)
 
 
 def _record_error(session: Session, conversation_id: int) -> None:

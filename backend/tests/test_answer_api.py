@@ -99,12 +99,13 @@ def test_not_found_answer_is_saved_complete_and_enters_history(client, db_sessio
 
     assert events[0] == ("sources", {"sources": []})
     assert events[1] == ("token", {"text": NOT_FOUND_ANSWER})
-    assert llm.calls == []
+    assert "openai/gpt-oss-120b" not in [model for model, _ in llm.calls]  # só o título usa a LLM
     answer = db_session.scalars(select(Message).where(Message.role == "assistant")).one()
     assert (answer.content, answer.status) == (NOT_FOUND_ANSWER, "complete")
     assert db_session.scalars(select(Citation)).all() == []
 
     llm.complete_response = "pergunta reescrita"
+    llm.calls.clear()
     _events(_ask(client, conversation_id, "E outra coisa?"))
     [(_, rewrite_messages)] = llm.calls
     assert NOT_FOUND_ANSWER in rewrite_messages[1]["content"]
