@@ -1,7 +1,10 @@
-export type Health = { status: string }
+import { request } from './client'
 
-export async function fetchHealth(): Promise<Health> {
-  const response = await fetch('/api/health')
-  if (!response.ok) throw new Error(`HTTP ${response.status}`)
-  return response.json()
+export type Health = {
+  status: 'ok' | 'degraded'
+  database: 'ok' | 'unavailable'
+  worker: 'running' | 'stopped' | 'unknown'
+  embedding_model: 'ready' | 'loading' | 'failed'
 }
+
+export const fetchHealth = () => request<Health>('/health')
