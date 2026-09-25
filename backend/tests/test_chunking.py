@@ -3,7 +3,7 @@ import pytest
 from transformers import AutoTokenizer
 
 from app.core.config import Settings
-from app.ingestion.chunking import chunk_pages, extract_pages
+from app.ingestion.chunking import chunk_pages, extract_pages, strip_references
 
 SIZE, OVERLAP = 50, 10
 LONG = " ".join(f"felino{i} recebeu dose{i} de meloxicam." for i in range(60))
@@ -54,3 +54,39 @@ def test_short_page_becomes_single_chunk_and_blank_page_none(tokenizer):
 def test_overlap_must_be_smaller_than_size(tokenizer):
     with pytest.raises(ValueError):
         chunk_pages([(1, LONG)], tokenizer, size=10, overlap=10)
+
+
+def _pages(*texts: str) -> list[tuple[int, str]]:
+    return [(n, text) for n, text in enumerate(texts, start=1)]
+
+
+@pytest.mark.parametrize("heading", ["Referências", "REFERENCES", "7. References:", "Literatura citada", "Referências Bibliográficas"])
+def test_references_heading_variants_are_cut(heading):
+    pages = _pages("Introdução.", "Métodos.", "Resultados.", f"Conclusão final.\n{heading}\nSILVA, A. Artigo. 2020.\n", "SOUZA, B. 2021.")
+
+    kept, start = strip_references(pages)
+
+    assert start == 4
+    assert kept == _pages("Introdução.", "Métodos.", "Resultados.", "Conclusão final.\n")
+
+
+def test_word_inside_a_sentence_is_not_a_heading():
+    pages = _pages("a", "b", "c", "As referências citadas abaixo foram revisadas.\n")
+
+    assert strip_references(pages) == (pages, None)
+
+
+def test_heading_in_first_half_is_ignored_and_last_one_wins():
+    pages = _pages("Sumário\nReferências\n", "b", "Referências\nparcial\n", "texto\nReferences\nFIM\n")
+
+    kept, start = strip_references(pages)
+
+    assert start == 4
+    assert kept[0] == (1, "Sumário\nReferências\n")
+    assert kept[-1] == (4, "texto\n")
+
+
+def test_document_without_heading_is_kept_whole():
+    pages = _pages("Anotações da aula.", "Mais anotações.")
+
+    assert strip_references(pages) == (pages, None)

@@ -8,7 +8,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.db.models import Chunk, Document
-from app.ingestion.chunking import chunk_pages, extract_pages
+from app.ingestion.chunking import chunk_pages, extract_pages, strip_references
 from app.ingestion.pdf_checks import PdfRejected, open_checked_pdf
 
 log = logging.getLogger("worker")
@@ -47,7 +47,7 @@ def process_document(session: Session, document_id: int, embedder: EmbeddingMode
     document = session.get(Document, document_id)
     try:
         with open_checked_pdf(Path(document.file_path)) as pdf:
-            pages = extract_pages(pdf)
+            pages, references_page = strip_references(extract_pages(pdf))
             num_pages = pdf.page_count
         chunks = chunk_pages(pages, embedder.tokenizer, chunk_size, chunk_overlap)
         vectors = embedder.encode([chunk.content for chunk in chunks])
@@ -58,6 +58,9 @@ def process_document(session: Session, document_id: int, embedder: EmbeddingMode
         )
         # Só as colunas alteradas vão no UPDATE: um soft delete feito durante o processamento é preservado.
         document.status, document.num_pages, document.error_message = "ready", num_pages, None
+        document.references_start_page = references_page
+        if references_page is None:
+            log.info("documento %s sem seção de referências identificada; indexado inteiro", document_id)
         session.commit()
         log.info("documento %s pronto: %s páginas, %s trechos", document_id, num_pages, len(chunks))
     except PdfRejected as exc:

@@ -100,3 +100,18 @@ def test_document_deleted_during_processing_finishes_and_stays_deleted(engine, d
     assert doc.status == "ready"
     assert doc.deleted_at is not None
     assert _chunk_count(db_session, doc.id) > 0
+
+
+def test_references_page_is_recorded(engine, db_session, tmp_path):
+    with_refs = _document(db_session, tmp_path, "comrefs", [TEXT, TEXT, TEXT + "\nReferences\nSILVA, A. 2020."])
+    without = _document(db_session, tmp_path, "semrefs", [TEXT, TEXT])
+
+    run_once(sessionmaker(engine), FakeEmbedder(), 50, 10)
+    run_once(sessionmaker(engine), FakeEmbedder(), 50, 10)
+
+    db_session.refresh(with_refs)
+    db_session.refresh(without)
+    assert (with_refs.status, with_refs.references_start_page) == ("ready", 3)
+    assert (without.status, without.references_start_page) == ("ready", None)
+    contents = db_session.scalars(select(Chunk.content).where(Chunk.document_id == with_refs.id)).all()
+    assert not any("SILVA" in c for c in contents)
