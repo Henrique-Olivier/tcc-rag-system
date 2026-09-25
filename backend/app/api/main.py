@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
-from app.api import documents
+from app.api import conversations, documents
 from app.core.config import get_settings
 from app.core.deps import get_embedder_loader, get_session
 from app.embeddings.model import EmbedderLoader
@@ -23,6 +23,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="RAG TCC", lifespan=lifespan)
 app.include_router(documents.router)
+app.include_router(conversations.router)
 
 
 class HealthOut(BaseModel):
