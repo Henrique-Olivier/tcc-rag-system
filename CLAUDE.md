@@ -18,7 +18,7 @@ Regras:
 - Se durante a implementação uma decisão do plano se mostrar errada, proponha a mudança no `plan.md` (com uma linha nova no histórico de revisões) antes de mudar o código.
 - Cada tarefa só é considerada pronta quando os testes dos CAs que ela cobre passam.
 
-Estado atual: `spec.md` aprovada; `plan.md` na v11, em revisão (achados do conjunto de avaliação simulado). T00 a T27 implementadas (T11 e T26 aguardando revisão); T29 a T35 só começam depois de a v11 ser aprovada; T28 (aceite final) fecha a Spec 001.
+Estado atual: `spec.md` aprovada; `plan.md` na v12 (calibração: trechos de 300 tokens, `TOP_K` 12; modelo `openai/gpt-oss-120b`). T00 a T35 implementadas; T11, T26 e T35 aguardam revisão manual, e a T35 ainda precisa das sequências F01/F02 com o gpt-oss (limite diário do Groq). T28 (aceite final) fecha a Spec 001. Resultados em `specs/001-mvp-rag/measurements.md`.
 
 ## Decisões principais (detalhes no plan.md)
 
