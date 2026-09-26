@@ -61,6 +61,41 @@ Medido em 25/09/2026 com `test/eval_retrieval.py`: as 16 perguntas de `test/ques
 
 - **`TOP_K` = 8, mantido.** Com 10 a busca ganharia a Q14, mas cada pergunta passaria de ~7 mil tokens, acima do limite de 8 mil tokens por minuto do Groq quando há histórico (seção 6.7).
 
+## Reavaliação, ajuste da recuperação e comparação de modelos (T35, plano v11 e v12)
+
+Medido em 25/09/2026, depois de tirar a seção de referências do índice (T30) e reindexar (T31). Relatórios: `test/retrieval-2026-09-25-chunk500.md`, `test/retrieval-2026-09-25.md`, `test/answers-2026-09-25-openai-gpt-oss-120b.md` e `test/answers-2026-09-25-qwen-qwen3.8-27b.md`.
+
+**Recuperação** (página esperada entre os trechos enviados, 14 perguntas com resposta; `eval_retrieval.py`):
+
+| Configuração | TOP_K 8 | TOP_K 10 | TOP_K 12 |
+|---|---|---|---|
+| T26: trechos de 500, com referências | 11/14 | 12/14 | 12/14 |
+| Trechos de 500, sem referências | 12/14 | 12/14 | 12/14 |
+| **Trechos de 300 (sobreposição 50), sem referências** | 11/14 | 13/14 | **14/14** |
+
+- Tirar as referências resolveu a Q14 (posição 10 para 4). A Q01 (D2) continuou na posição 17: pela regra da seção 6.3, item 2 (falha além da posição 10 em documento de páginas densas), `CHUNK_SIZE` caiu para 300.
+- Com trechos de 300, a Q01 subiu para a posição 9; a Q03 desceu de 7 para 12, porque o dado dela ficou dividido em mais trechos. Com `TOP_K` 12 todas acertam, inclusive a Q09 (exaustividade, 3 documentos), e todos os trechos que decidiram um acerto têm similaridade de pelo menos 0,54, acima do `MIN_SIMILARITY` de 0,5.
+- **Decisão (plano v12):** `CHUNK_SIZE` 300, `CHUNK_OVERLAP` 50, `TOP_K` 12. São 3,6 mil tokens de trechos por pergunta, menos que os 4 mil de antes (8 × 500). A busca híbrida não foi necessária.
+- **Falha que continua:** a F01.1 ("valores de creatinina de cada estágio IRIS") não traz a D2 p. 3 entre os 12, embora a Q01, com outra redação, traga. Perguntas com siglas e termos exatos são o caso previsto para a busca híbrida (seção 6.3, item 3); fica registrado para a próxima spec.
+
+**Comparação de modelos** (`eval_answers.py`, mesmo índice e configuração):
+
+| Métrica | `openai/gpt-oss-120b` | `qwen/qwen3.8-27b` |
+|---|---|---|
+| Itens concluídos | 16 de 22 (limite diário do Groq na F01.1) | 22 de 22 |
+| Recuperação | 15/15 | 17/19 |
+| Citação no documento esperado | 13/15 | 17/19 |
+| Respostas sem citação (`uncited`) | 3 (Q10, Q12, Q13: respostas "os trechos não bastam") | 0 |
+| Tempo médio | 2,5 s | 2,1 s |
+
+Revisão das respostas:
+
+- **qwen:** cita sempre e acerta a armadilha de espécie (Q10, F02.3), mas perde nas regras de conteúdo da seção 6.2: erro factual na Q12 ("hipofosfatemia" onde o artigo trata de hiperfosfatemia), português com erros ("gatos giovani", "estudorelata", "concentração séria de creatinina", nome do autor trocado), classifica como efeito colateral o aumento de frequência cardíaca que o estudo só registra (Q11), e nas perguntas sem resposta continua falando de outros assuntos depois de dizer que não há informação.
+- **gpt-oss:** português correto e respostas mais contidas; a Q10 está certa no conteúdo (dados só de cães), mas sem citação, o que o aviso da seção 6.4 sinaliza.
+- **Decisão:** pelo critério da seção 12 (trocar só se o outro for melhor em citação **sem perder nas regras de conteúdo**), o padrão continua `openai/gpt-oss-120b`.
+
+**Pendente:** as sequências F01 e F02 com o `gpt-oss-120b`, interrompidas pelo limite diário, rodam no dia seguinte com `eval_answers.py --model openai/gpt-oss-120b --only F01,F02`. Na rodada interrompida, as tentativas repetidas na mesma conversa geraram histórico e mudaram a busca da F01.1; o script não repete mais (para no 429).
+
 ## Latência (T27)
 
 Medido em 25/09/2026 com `test/measure_latency.py`: tempo entre o envio da pergunta e o fim da resposta (evento `done`), Q01 a Q05 do conjunto simulado, cada uma numa conversa nova, 65 s entre perguntas por causa do limite do Groq. No cenário com indexação, o worker processava um PDF sintético de 80 páginas enviado antes das perguntas.

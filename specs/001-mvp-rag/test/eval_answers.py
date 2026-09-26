@@ -24,7 +24,9 @@ from sqlalchemy import URL, create_engine, text
 HERE = Path(__file__).parent
 API = "http://127.0.0.1:8000"
 PAUSE_SECONDS = 65
-RATE_LIMIT_RETRIES = 3
+# Sem repetição: repetir na mesma conversa cria histórico e muda a busca (reescrita). Num 429 o
+# script para; rode as perguntas restantes depois com --only.
+RATE_LIMIT_RETRIES = 0
 
 
 class _Env(BaseSettings):
@@ -119,9 +121,13 @@ def section(item_id: str, turn: dict, conversation_id: int, result: dict, m: dic
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", required=True, help="modelo configurado na api, para identificar o relatório")
-model = parser.parse_args().model
+parser.add_argument("--only", help="ids separados por vírgula, ex.: F01,F02 (padrão: todos)")
+args = parser.parse_args()
+model = args.model
 
 items = [(q["id"], [q]) for q in spec["questions"]] + [(f["id"], f["turns"]) for f in spec["follow_ups"]]
+if args.only:
+    items = [item for item in items if item[0] in args.only.split(",")]
 report: list[str] = []
 summary: list[tuple[str, dict, float]] = []
 created: list[int] = []
@@ -159,6 +165,7 @@ header = [f"# Respostas do conjunto simulado — {model} — {date.today():%d/%m
           *[f"| {label} | {yes_no(m['recall'])} | {yes_no(m['doc_cited'])} | {yes_no(m['uncited'])} |" for label, m, _ in summary],
           ""]
 slug = re.sub(r"[^a-z0-9.-]+", "-", model.lower()).strip("-")
-out = HERE / f"answers-{date.today():%Y-%m-%d}-{slug}.md"
+suffix = f"-{args.only.replace(',', '-')}" if args.only else ""
+out = HERE / f"answers-{date.today():%Y-%m-%d}-{slug}{suffix}.md"
 out.write_text("\n".join(header + report), encoding="utf-8")
 print(f"relatório: {out}")
